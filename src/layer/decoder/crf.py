@@ -1,7 +1,5 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# @Author  : catnlp
-# @FileName: crf.py
-# @Time    : 2020/2/27 23:21
 
 from typing import List, Optional
 
