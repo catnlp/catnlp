@@ -10,17 +10,29 @@
 📦src
  ┣ 📂callback
  ┃ ┣ 📂optimizer
- ┣ 📂config
+ ┣ 📂common
+ ┃ ┣ 📜load_file.py
  ┣ 📂data
- ┃ ┗ 📂ner
- ┃ ┃ ┣ 📂en
- ┃ ┃ ┗ 📂zh
+ ┃ ┣ 📂config
+ ┃ ┃ ┗ 📂ner
+ ┃ ┃ ┃ ┣ 📜bilstm.yaml
+ ┃ ┃ ┃ ┣ 📜bilstm_crf.yaml
+ ┃ ┃ ┃ ┗ 📜logging.yaml
+ ┃ ┣ 📂dataset
+ ┃ ┃ ┗ 📂ner
+ ┃ ┣ 📂embed
+ ┃ ┗ 📂output
+ ┃ ┃ ┗ 📂ner
  ┣ 📂layer
  ┃ ┣ 📂cnn
+ ┃ ┣ 📂decoder
+ ┃ ┃ ┣ 📜crf.py
  ┃ ┣ 📂rnn
  ┃ ┣ 📂transformer
  ┣ 📂ner
  ┃ ┣ 📂model
+ ┃ ┃ ┣ 📜bilstm.py
+ ┃ ┃ ┣ 📜bilstm_crf.py
  ┃ ┣ 📂util
  ┃ ┃ ┣ 📜clean.py
  ┃ ┃ ┣ 📜data.py
@@ -28,9 +40,10 @@
  ┃ ┃ ┣ 📜merge.py
  ┃ ┃ ┣ 📜progressbar.py
  ┃ ┃ ┣ 📜vocab.py
- ┣ 📂output
- ┣ 📜format_ner.py
- ┗ 📜train_ner.py
+ ┃ ┣ 📜format.py
+ ┃ ┣ 📜train.py
+ ┣ 📜format.py
+ ┣ 📜train.py
 ```
 
 ### 命名实体识别（NER）
