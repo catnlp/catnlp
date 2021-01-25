@@ -2,7 +2,6 @@
 # -*- coding:utf-8 -*-
 
 import logging
-import os
 from pathlib import Path
 import random
 
@@ -14,93 +13,203 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .util.progressbar import ProgressBar
 from .util.vocab import Vocab
-from .util.embed import get_word2vec
+from .util.embed import get_embed
 from .util.data import NerDataset, NerDataLoader
-from .util.merge import merge_tag_list
+from .util.merge import merge_tag_lists
 
 
 class NerTrain:
     def __init__(self, config):
-        self.train_config = config["train"]
-        self.model_config = config["model"]
-
-    def train(self):
-        self.setup_seed(self.train_config["seed"])
+        train_cfg = config["train"]
+        model_cfg = config["model"]
+        self.setup_seed(train_cfg["seed"])
         if self.train_config["cuda"] and \
                 torch.cuda.is_available():
-            device = torch.device("cuda")
+            self.device = torch.device("cuda")
             logging.info("在GPU上训练模型")
         else:
-            device = torch.device("cpu")
+            self.device = torch.device("cpu")
             logging.info("在CPU上训练模型")
-
-        train_file = args.train
-        dev_file = args.dev
-        test_file = args.test
+        input_dir = Path(train_cfg["input"])
+        train_file = input_dir / "train.txt"
+        dev_file = input_dir / "dev.txt"
+        test_file = input_dir / "test.txt"
         # 加载词表
-        delimiter = args.delimiter
-        vocab = Vocab(pad="<pad>", unk="<unk>", nlabel=nlabel)
-        if args.do_train:
-            vocab.build_vocab(train_file, dev_file, test_file,
-                            delimiter=delimiter, count=0)
-            vocab.save_vocab(args.output_word, args.output_label)
-        else:
-            vocab.load_vocab(args.output_word, args.output_label)
+        delimiter = train_cfg["delimiter"]
+        vocab = Vocab(pad="<pad>", unk="<unk>")
+        vocab.build_vocab(train_file, dev_file, test_file,
+                          delimiter=delimiter, count=0)
+        output_dir = Path(train_cfg["output"])
+        word_file = output_dir / "word.txt"
+        label_file = output_dir / "label.txt"
+        vocab.save_vocab(word_file, label_file)
 
-        config['word_size'] = vocab.get_word_size()
-        config['labels_size'] = []
-        for i in range(nlabel):
-            config['labels_size'].append(vocab.get_label_size(nlabel=i))
+        model_cfg['word_size'] = vocab.get_word_size()
+        model_cfg['labels_size'] = vocab.get_label_size()
 
         # 数据处理
-        train_data = NerDataset(train_file, vocab, delimiter=delimiter, nlabel=nlabel)
-        dev_data = NerDataset(dev_file, vocab, delimiter=delimiter, nlabel=nlabel)
-        test_data = NerDataset(test_file, vocab, delimiter=delimiter, nlabel=nlabel)
+        train_data = NerDataset(train_file, vocab, delimiter=delimiter)
+        dev_data = NerDataset(dev_file, vocab, delimiter=delimiter)
+        test_data = NerDataset(test_file, vocab, delimiter=delimiter)
 
-        train_loader = NerDataLoader(train_data, args.batch_size, shuffle=True, nlabel=nlabel)
-        dev_loader = NerDataLoader(dev_data, 1, shuffle=False, nlabel=nlabel)
-        test_loader = NerDataLoader(test_data, 1, shuffle=False, nlabel=nlabel)
+        self.train_loader = NerDataLoader(train_data, train_cfg["batch"], shuffle=True)
+        self.dev_loader = NerDataLoader(dev_data, 1, shuffle=False)
+        self.test_loader = NerDataLoader(test_data, 1, shuffle=False)
 
         # 构建word2vec
-        word2vec = get_word2vec(args.embedding, vocab, config['word_dim'])
-        config['word2vec'] = word2vec
+        model_cfg["embed"] = \
+            get_embed(train_cfg["embedding"], vocab, model_cfg["word_dim"])
 
         # 构建模型
-        logging.info(config)
-        model_name = config['name']
-        if model_name == "BiLSTM":
-            from model import BiLSTM
-            model = BiLSTM(config)
-        elif model_name == "BiLSTM-CRF":
-            from model import BiLSTM_CRF
-            model = BiLSTM_CRF(config)
-        elif model_name == "Transformer-CRF":
-            from model import Transformer_CRF
-            model = Transformer_CRF(config)
+        logging.info(model_cfg)
+        model_name = config["name"].lower()
+        if model_name == "bilstm":
+            from .model import BiLSTM
+            model = BiLSTM(model_cfg)
+        elif model_name == "bilstm_crf":
+            from .model import BiLSTM_CRF
+            model = BiLSTM_CRF(model_cfg)
         else:
-            raise RuntimeError("没有对应的模型")
+            raise RuntimeError(f"没有对应的模型: {config['name']}")
 
-        if args.checkpoint and \
-                os.path.exists(args.output_model):
-            device_name = "cuda" if torch.cuda.is_available() else "cpu"
-            model.load_state_dict(torch.load(args.output_model,
-                                            map_location=device_name))
-
-        model = model.to(device)
+        self.model = model.to(self.device)
         # for name, param in model.named_parameters():
         #     if param.requires_grad:
         #         print(name)
-        writer = SummaryWriter(args.output_summary)
-        if args.do_train:
-            train(args.epoch)
-        test()
-        writer.close()
+        summary_dir = output_dir / "summary/"
+        self.writer = SummaryWriter(summary_dir)
+        self.vocab = vocab
+        self.train_cfg = train_cfg
+        self.output_model = output_dir / f"{model_name}.pt"
 
-    def dev(self):
-        pass
+    def train(self):
+        logging.info("开始训练")
+        optim_name = self.train_cfg["optim"].lower()
+        lr = self.train_cfg["lr"]
+        if optim_name == "adam":
+            optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        elif optim_name == "sgd":
+            optimizer = optim.SGD(self.model.parameters(), lr=lr)
+        else:
+            raise RuntimeError("当前优化器不支持")
+        scheduler = ReduceLROnPlateau(optimizer, 'max', verbose=True, patience=5)
 
-    def test(self):
-        pass
+        best_f1 = 0.0
+        for epoch in range(self.train_cfg["epoch"]):
+            self.model.train()
+            bar = ProgressBar(n_total=len(self.train_loader), desc='Training')
+            for step, batch in enumerate(self.train_loader):
+                word_batch, label_batch = batch
+                word_batch = word_batch.to(self.device)
+                label_batch = label_batch.to(self.device)
+                optimizer.zero_grad()
+                loss = self.model.calculate_loss(word_batch, label_batch)
+                loss.backward()
+                optimizer.step()
+                bar(step=step, info={'loss': loss.item()})
+                # if step % 5 == 4:
+                #     f1, dloss = dev(dev_loader)
+                #     print("f1: ", f1)
+                #     print("loss: ", dloss)
+                #     model.train()
+
+            train_f1, train_loss = self.dev(self.train_loader)
+            dev_f1, dev_loss = self.dev(self.dev_loader)
+            print()
+            logging.info("Epoch: {} 验证集F1: {}".format(epoch + 1, dev_f1))
+            self.writer.add_scalars("f1",
+                            {
+                                "train": round(100 * train_f1, 2),
+                                "dev": round(100 * dev_f1, 2)
+                            },
+                            epoch + 1)
+            self.writer.add_scalars('loss',
+                            {
+                                "train": round(
+                                    train_loss, 2),
+                                "dev": round(dev_loss,
+                                                2)
+                            },
+                            epoch + 1)
+
+            if dev_f1 >= best_f1:
+                best_f1 = dev_f1
+                torch.save(self.model.state_dict(), self.output_model)
+
+            scheduler.step(100 * dev_f1)
+
+        logging.info(f"训练完成，best f1: {best_f1}")
+
+    def dev(self, loader):
+        self.model.eval()
+        results, _, golds_list, preds_list = self.generate_result(loader)
+        f1 = self.get_f1(golds_list, preds_list)
+        loss = self.get_loss(loader)
+        return f1, loss
+
+
+    def generate_result(self, loader):
+        results = list()
+        pred_results = list()
+        golds_list = list()
+        preds_list = list()
+        for batch in loader:
+            word_batch, gold_ids_batch = batch
+            word_batch = word_batch.to(self.device)
+            pred_ids_list, len_list = self.model(word_batch)
+            word_list, gold_list, pred_list, pred_result = self.recover_id_to_tag(
+                word_batch.tolist(),
+                gold_ids_batch,
+                pred_ids_list,
+                len_list
+            )
+            golds_list.append(gold_list)
+            preds_list.append(pred_list)
+            for word, gold, pred in zip(word_list, gold_list, pred_list):
+                results.append(f"{word}\t{gold}\t{pred}")
+            results.append("")
+
+            for pred in zip(word_list, *pred_result):
+                pred_results.append(pred)
+            pred_results.append(list())
+        return results, pred_results, golds_list, preds_list
+
+
+    def get_loss(self, loader):
+        loss = 0.0
+        for batch in loader:
+            word_batch, label_batch = batch
+            word_batch = word_batch.to(self.device)
+            label_batch = label_batch.to(self.device)
+            loss_batch = self.model.calculate_loss(word_batch, label_batch)
+            loss += loss_batch.item()
+        return loss
+
+
+    def recover_id_to_tag(self, word_id_list, gold_ids_list, pred_ids_list, len_list, nlabel=1):
+        word_tag_list = list()
+        gold_tags_list = [[] for _ in range(nlabel)]
+        pred_tags_list = [[] for _ in range(nlabel)]
+        for word_id, seq_len in \
+                zip(word_id_list, len_list):
+            for idx in range(seq_len):
+                word_tag_list.append(self.vocab.get_word(word_id[idx]))
+
+        for i, (gold_id_list, pred_id_list) in \
+                enumerate(zip(gold_ids_list, pred_ids_list)):
+            for gold_id, pred_id, seq_len in \
+                    zip(gold_id_list.tolist(), pred_id_list.tolist(), len_list):
+                for j in range(seq_len):
+                    gold_tags_list[i].append(self, self.vocab.get_label(gold_id[j]))
+                    pred_tags_list[i].append(self, self.vocab.get_label(pred_id[j]))
+
+        # todo 多列情况
+        # gold_tag_list = merge_tag_list(list(reversed(gold_tags_list)))
+        # pred_tag_list = merge_tag_list(list(reversed(pred_tags_list)))
+        gold_tag_list = gold_tags_list[0]
+        pred_tag_list = pred_tags_list[0]
+
+        return word_tag_list, gold_tag_list, pred_tag_list, pred_tags_list
 
     def setup_seed(self, seed):
         torch.manual_seed(seed)

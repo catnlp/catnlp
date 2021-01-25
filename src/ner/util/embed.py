@@ -4,7 +4,25 @@
 import numpy as np
 
 
-def get_word2vec(embed_file, vocab, embed_dim=100):
+def ge_embed(embed_file, vocab, embed_dim=100, format="word2vec"):
+    """
+    获得词向量
+    Args:
+        embed_file(str): 词向量文件路径
+        vocab(Vocab): 词典类
+        embed_dim(int): 词向量维度
+        format(str): 词向量文件格式
+    Returns: 词向量
+    """
+    format = format.lower()
+    if format == "word2vec":
+        embed = get_word2vec(embed_file, vocab, embed_dim)
+    else:
+        raise ValueError(f"不支持文件格式：{format}")
+    return embed
+
+
+def get_word2vec(embed_file, vocab, embed_dim):
     """
     获得word2vec词向量
     Args:
