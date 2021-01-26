@@ -10,11 +10,12 @@ class NerDataLoader(DataLoader):
     """
     数据加载器
     """
-    def __init__(self, dataset, batch_size, shuffle=False):
+    def __init__(self, dataset, batch_size, shuffle=False, drop_last=False):
         super(NerDataLoader, self).__init__(dataset,
                                             batch_size=batch_size,
                                             shuffle=shuffle,
-                                            collate_fn=self._collate_fn)
+                                            collate_fn=self._collate_fn,
+                                            drop_last=drop_last)
 
     def _collate_fn(self, data):
         word = pad_sequence([x[0] for x in data], batch_first=True,

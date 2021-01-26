@@ -15,7 +15,7 @@ from .util.progressbar import ProgressBar
 from .util.vocab import Vocab
 from .util.embed import get_embed
 from .util.data import NerDataset, NerDataLoader
-from .util.merge import merge_tag_lists
+from .util.score import get_f1
 
 
 class NerTrain:
@@ -50,11 +50,9 @@ class NerTrain:
         # 数据处理
         train_data = NerDataset(train_file, vocab, delimiter=delimiter)
         dev_data = NerDataset(dev_file, vocab, delimiter=delimiter)
-        test_data = NerDataset(test_file, vocab, delimiter=delimiter)
 
-        self.train_loader = NerDataLoader(train_data, train_cfg["batch"], shuffle=True)
-        self.dev_loader = NerDataLoader(dev_data, 1, shuffle=False)
-        self.test_loader = NerDataLoader(test_data, 1, shuffle=False)
+        self.train_loader = NerDataLoader(train_data, train_cfg["batch"], shuffle=True, drop_last=True)
+        self.dev_loader = NerDataLoader(dev_data, train_cfg["batch"], shuffle=False, drop_last=False)
 
         # 构建word2vec
         model_cfg["embed"] = \
@@ -142,38 +140,26 @@ class NerTrain:
 
     def dev(self, loader):
         self.model.eval()
-        results, _, golds_list, preds_list = self.generate_result(loader)
-        f1 = self.get_f1(golds_list, preds_list)
+        gold_lists, pred_lists = self.generate_result(loader)
+        f1 = get_f1(gold_lists, pred_lists)
         loss = self.get_loss(loader)
         return f1, loss
 
-
     def generate_result(self, loader):
-        results = list()
-        pred_results = list()
-        golds_list = list()
-        preds_list = list()
+        gold_list = list()
+        pred_list = list()
         for batch in loader:
             word_batch, gold_ids_batch = batch
             word_batch = word_batch.to(self.device)
-            pred_ids_list, len_list = self.model(word_batch)
-            word_list, gold_list, pred_list, pred_result = self.recover_id_to_tag(
-                word_batch.tolist(),
+            pred_ids_batch, len_list_batch = self.model(word_batch)
+            gold_lists_batch, pred_lists_batch = self.recover_id_to_tag(
                 gold_ids_batch,
-                pred_ids_list,
-                len_list
+                pred_ids_batch,
+                len_list_batch
             )
-            golds_list.append(gold_list)
-            preds_list.append(pred_list)
-            for word, gold, pred in zip(word_list, gold_list, pred_list):
-                results.append(f"{word}\t{gold}\t{pred}")
-            results.append("")
-
-            for pred in zip(word_list, *pred_result):
-                pred_results.append(pred)
-            pred_results.append(list())
-        return results, pred_results, golds_list, preds_list
-
+            gold_list.extend(gold_lists_batch)
+            pred_list.extend(pred_lists_batch)
+        return gold_list, pred_list
 
     def get_loss(self, loader):
         loss = 0.0
@@ -185,31 +171,21 @@ class NerTrain:
             loss += loss_batch.item()
         return loss
 
+    def recover_id_to_tag(self, gold_ids_list, pred_ids_list, len_list, nlabel=1):
+        gold_tag_lists = list()
+        pred_tag_lists = list()
 
-    def recover_id_to_tag(self, word_id_list, gold_ids_list, pred_ids_list, len_list, nlabel=1):
-        word_tag_list = list()
-        gold_tags_list = [[] for _ in range(nlabel)]
-        pred_tags_list = [[] for _ in range(nlabel)]
-        for word_id, seq_len in \
-                zip(word_id_list, len_list):
-            for idx in range(seq_len):
-                word_tag_list.append(self.vocab.get_word(word_id[idx]))
+        for gold_id_list, pred_id_list, seq_len in \
+                zip(gold_ids_list.tolist(), pred_ids_list.tolist(), len_list):
+            tmp_gold_list = list()
+            tmp_pred_list = list()
+            for i in range(seq_len):
+                tmp_gold_list.append(self, self.vocab.get_label(gold_id_list[i]))
+                tmp_pred_list.append(self, self.vocab.get_label(pred_id_list[i]))
+            gold_tag_lists.append(tmp_gold_list)
+            pred_tag_lists.append(tmp_pred_list)
 
-        for i, (gold_id_list, pred_id_list) in \
-                enumerate(zip(gold_ids_list, pred_ids_list)):
-            for gold_id, pred_id, seq_len in \
-                    zip(gold_id_list.tolist(), pred_id_list.tolist(), len_list):
-                for j in range(seq_len):
-                    gold_tags_list[i].append(self, self.vocab.get_label(gold_id[j]))
-                    pred_tags_list[i].append(self, self.vocab.get_label(pred_id[j]))
-
-        # todo 多列情况
-        # gold_tag_list = merge_tag_list(list(reversed(gold_tags_list)))
-        # pred_tag_list = merge_tag_list(list(reversed(pred_tags_list)))
-        gold_tag_list = gold_tags_list[0]
-        pred_tag_list = pred_tags_list[0]
-
-        return word_tag_list, gold_tag_list, pred_tag_list, pred_tags_list
+        return gold_tag_lists, pred_tag_lists
 
     def setup_seed(self, seed):
         torch.manual_seed(seed)

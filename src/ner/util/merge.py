@@ -287,6 +287,16 @@ def find_no_overlap1(interval_list, start, size):
     return -1
 
 
+def get_interval(tag_list, weight=1, format="bio"):
+    if format == "bio":
+        entity_list = get_interval_bio(tag_list, weight)
+    elif format == "bioes":
+        entity_list = get_interval_bioes(tag_list, weight)
+    else:
+        raise ValueError(f"错误格式：{format}")
+    return entity_list
+
+
 def get_interval_bio(tag_list, weight):
     entities = []
     pre_o = True
