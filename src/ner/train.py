@@ -141,7 +141,7 @@ class NerTrain:
     def dev(self, loader):
         self.model.eval()
         gold_lists, pred_lists = self.generate_result(loader)
-        f1 = get_f1(gold_lists, pred_lists)
+        f1 = get_f1(gold_lists, pred_lists, self.train_cfg["tag_format"])
         loss = self.get_loss(loader)
         return f1, loss
 
