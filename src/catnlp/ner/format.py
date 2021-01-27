@@ -7,7 +7,24 @@ from .util.clean import clean_text
 
 
 class NerFormat:
-    def json2bio(self, source, target, is_clean=False):
+    def convert(self, source, target, is_clean, format):
+        if format == "json2bio":
+            self._json2bio(source, target, is_clean)
+        elif format == "bio2json":
+            self._bio2json(source, target, is_clean)
+        elif format == "json2bioes":
+            self._json2bioes(source, target, is_clean)
+        elif format == "bioes2json":
+            self._bioes2json(source, target, is_clean)
+        elif format == "json2clue":
+            self._json2clue(source, target, is_clean)
+        elif format == "clue2json":
+            self._clue2json(source, target, is_clean)
+        else:
+            raise RuntimeError(f"无效格式：{format}")
+        print(f"{format}格式转换成功")
+
+    def _json2bio(self, source, target, is_clean=False):
         """
         json格式转bio格式
         Args:
@@ -37,7 +54,7 @@ class NerFormat:
                 tf.write("\n")
 
 
-    def bio2json(self, source, target, is_clean=False):
+    def _bio2json(self, source, target, is_clean=False):
         """
         bio格式转json格式
         Args:
@@ -88,7 +105,7 @@ class NerFormat:
                     idx = 0
 
 
-    def json2bioes(self, source, target, is_clean=False):
+    def _json2bioes(self, source, target, is_clean=False):
         """
         json格式转bioes格式
         Args:
@@ -123,7 +140,7 @@ class NerFormat:
                 tf.write("\n")
 
 
-    def bioes2json(self, source, target, is_clean=False):
+    def _bioes2json(self, source, target, is_clean=False):
         """
         bioes格式转json格式
         Args:
@@ -174,7 +191,7 @@ class NerFormat:
                     idx = 0
 
 
-    def clue2json(self, source, target):
+    def _clue2json(self, source, target, is_clean=False):
         """
         clue格式转json格式
         Args:
@@ -190,6 +207,8 @@ class NerFormat:
                 if not line:
                     continue
                 text = line['text']
+                if is_clean:
+                    text = clean_text(text)
                 entities = line['label']
                 entity_list = []
                 for tag in entities:
@@ -205,7 +224,7 @@ class NerFormat:
                 }, ensure_ascii=False) + "\n")
 
 
-    def json2clue(self, source, target):
+    def _json2clue(self, source, target, is_clean=False):
         """
         json格式转clue格式
         Args:
@@ -221,6 +240,8 @@ class NerFormat:
                 if not line:
                     continue
                 text = line['text']
+                if is_clean:
+                    text = clean_text(text)
                 entities = line['label']
                 entity_dict = {}
                 for entity in entities:

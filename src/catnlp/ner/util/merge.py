@@ -376,9 +376,9 @@ def get_interval(tag_list, weight=None, format="bio"):
     :return:
     """
     if format == "bio":
-        get_interval_bio(tag_list, weight)
+        return get_interval_bio(tag_list, weight)
     elif format == "bioes":
-        get_interval_bioes(tag_list, weight)
+        return get_interval_bioes(tag_list, weight)
     else:
         raise ValueError("select in {bio|bioes}")
 

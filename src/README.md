@@ -7,22 +7,20 @@
 ### 目录结构
 
 ```
-📦src
+📦catnlp
  ┣ 📂callback
  ┃ ┣ 📂optimizer
  ┣ 📂common
  ┃ ┣ 📜load_file.py
  ┣ 📂data
  ┃ ┣ 📂config
- ┃ ┃ ┗ 📂ner
- ┃ ┃ ┃ ┣ 📜bilstm.yaml
- ┃ ┃ ┃ ┣ 📜bilstm_crf.yaml
- ┃ ┃ ┃ ┗ 📜logging.yaml
  ┃ ┣ 📂dataset
- ┃ ┃ ┗ 📂ner
  ┃ ┣ 📂embed
+ ┃ ┣ 📂log
  ┃ ┗ 📂output
  ┃ ┃ ┗ 📂ner
+ ┃ ┃ ┃ ┗ 📂zh
+ ┃ ┃ ┃ ┃ ┗ 📂cluener
  ┣ 📂layer
  ┃ ┣ 📂cnn
  ┃ ┣ 📂decoder
@@ -39,11 +37,10 @@
  ┃ ┃ ┣ 📜embed.py
  ┃ ┃ ┣ 📜merge.py
  ┃ ┃ ┣ 📜progressbar.py
+ ┃ ┃ ┣ 📜score.py
  ┃ ┃ ┣ 📜vocab.py
  ┃ ┣ 📜format.py
  ┃ ┣ 📜train.py
- ┣ 📜format.py
- ┣ 📜train.py
 ```
 
 ### 命名实体识别（NER）

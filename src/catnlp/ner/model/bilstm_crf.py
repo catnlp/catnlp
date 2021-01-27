@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, \
     pad_packed_sequence, pad_sequence
 
-from ...layer.decoder import CRF
+from ...layer.decoder.crf import CRF
 
 
 class BiLSTM_CRF(nn.Module):

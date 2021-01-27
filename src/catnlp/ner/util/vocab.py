@@ -52,14 +52,14 @@ class Vocab:
             return
 
         with open(data_file, 'r', encoding='utf-8') as rf:
-            for i, line in enumerate(rf):
+            for line in rf:
                 line = line.rstrip()
                 if not line:
                     continue
                 word, label = line.split(delimiter)
 
                 # 判断标签是否在标签词典里
-                if label not in self._label2id[i]:
+                if label not in self._label2id:
                     self._label2id[label] = self._label_size
                     self._id2label[self._label_size] = label
                     self._label_size += 1
@@ -163,7 +163,7 @@ class Vocab:
         """
         return self._id2label.get(idx)
     
-    def get_label_id(self, label, nlabel):
+    def get_label_id(self, label):
         """
         获得标签索引
         Args:

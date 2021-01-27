@@ -4,7 +4,7 @@
 import numpy as np
 
 
-def ge_embed(embed_file, vocab, embed_dim=100, format="word2vec"):
+def get_embed(embed_file, vocab, embed_dim=100, format="word2vec"):
     """
     获得词向量
     Args:

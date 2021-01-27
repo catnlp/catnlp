@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # -*- coding:utf-8 -*-
 
+import os
 import logging
 from pathlib import Path
 import random
@@ -20,10 +21,11 @@ from .util.score import get_f1
 
 class NerTrain:
     def __init__(self, config):
+        logging.info(config)
         train_cfg = config["train"]
         model_cfg = config["model"]
         self.setup_seed(train_cfg["seed"])
-        if self.train_config["cuda"] and \
+        if train_cfg["cuda"] and \
                 torch.cuda.is_available():
             self.device = torch.device("cuda")
             logging.info("在GPU上训练模型")
@@ -37,15 +39,17 @@ class NerTrain:
         # 加载词表
         delimiter = train_cfg["delimiter"]
         vocab = Vocab(pad="<pad>", unk="<unk>")
-        vocab.build_vocab(train_file, dev_file, test_file,
+        vocab.build_vocab(train_file, dev_file,
                           delimiter=delimiter, count=0)
         output_dir = Path(train_cfg["output"])
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         word_file = output_dir / "word.txt"
         label_file = output_dir / "label.txt"
         vocab.save_vocab(word_file, label_file)
 
         model_cfg['word_size'] = vocab.get_word_size()
-        model_cfg['labels_size'] = vocab.get_label_size()
+        model_cfg['label_size'] = vocab.get_label_size()
 
         # 数据处理
         train_data = NerDataset(train_file, vocab, delimiter=delimiter)
@@ -153,7 +157,7 @@ class NerTrain:
             word_batch = word_batch.to(self.device)
             pred_ids_batch, len_list_batch = self.model(word_batch)
             gold_lists_batch, pred_lists_batch = self.recover_id_to_tag(
-                gold_ids_batch,
+                gold_ids_batch.tolist(),
                 pred_ids_batch,
                 len_list_batch
             )
@@ -171,17 +175,17 @@ class NerTrain:
             loss += loss_batch.item()
         return loss
 
-    def recover_id_to_tag(self, gold_ids_list, pred_ids_list, len_list, nlabel=1):
+    def recover_id_to_tag(self, gold_ids_list, pred_ids_list, len_list):
         gold_tag_lists = list()
         pred_tag_lists = list()
 
         for gold_id_list, pred_id_list, seq_len in \
-                zip(gold_ids_list.tolist(), pred_ids_list.tolist(), len_list):
+                zip(gold_ids_list, pred_ids_list, len_list):
             tmp_gold_list = list()
             tmp_pred_list = list()
             for i in range(seq_len):
-                tmp_gold_list.append(self, self.vocab.get_label(gold_id_list[i]))
-                tmp_pred_list.append(self, self.vocab.get_label(pred_id_list[i]))
+                tmp_gold_list.append(self.vocab.get_label(gold_id_list[i]))
+                tmp_pred_list.append(self.vocab.get_label(pred_id_list[i]))
             gold_tag_lists.append(tmp_gold_list)
             pred_tag_lists.append(tmp_pred_list)
 
