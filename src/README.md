@@ -12,18 +12,21 @@
  ┃ ┣ 📂optimizer
  ┣ 📂common
  ┃ ┣ 📜load_file.py
- ┣ 📂data
- ┃ ┣ 📂config
- ┃ ┣ 📂dataset
- ┃ ┣ 📂embed
- ┃ ┣ 📂log
- ┃ ┗ 📂output
  ┣ 📂layer
  ┃ ┣ 📂cnn
  ┃ ┣ 📂decoder
  ┃ ┃ ┣ 📜crf.py
  ┃ ┣ 📂rnn
  ┃ ┣ 📂transformer
+ ┃ ┃ ┣ 📂bert
+ ┃ ┃ ┃ ┣ 📜config.py
+ ┃ ┃ ┃ ┣ 📜model.py
+ ┃ ┃ ┃ ┣ 📜token.py
+ ┃ ┃ ┣ 📂util
+ ┃ ┃ ┃ ┣ 📜config.py
+ ┃ ┃ ┃ ┣ 📜file.py
+ ┃ ┃ ┃ ┣ 📜model.py
+ ┃ ┃ ┃ ┗ 📜token.py
  ┣ 📂ner
  ┃ ┣ 📂model
  ┃ ┃ ┣ 📜bilstm.py

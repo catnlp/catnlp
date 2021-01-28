@@ -14,9 +14,9 @@ if __name__ == "__main__":
     parser.add_argument("--type", type=str,
                         default="NER", help="训练NER模型")
     parser.add_argument("--train_config", type=str,
-                        default="catnlp/data/config/ner/bilstm_crf.yaml", help="训练配置")
+                        default="data/config/ner/bilstm_crf.yaml", help="训练配置")
     parser.add_argument("--log_config", type=str,
-                        default="catnlp/data/config/ner/logging.yaml", help="日志配置")
+                        default="data/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()
 
     try:
