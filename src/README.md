@@ -29,8 +29,8 @@
  ┃ ┃ ┃ ┗ 📜token.py
  ┣ 📂ner
  ┃ ┣ 📂model
+ ┃ ┃ ┣ 📜bert.py
  ┃ ┃ ┣ 📜bilstm.py
- ┃ ┃ ┣ 📜bilstm_crf.py
  ┃ ┣ 📂util
  ┃ ┃ ┣ 📜clean.py
  ┃ ┃ ┣ 📜data.py
