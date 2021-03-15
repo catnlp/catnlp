@@ -29,6 +29,5 @@ if __name__ == "__main__":
     type_lower = args.type.lower()
     if type_lower == "ner":
         ner_train = NerTrain(train_config)
-        ner_train.train()
     else:
         raise RuntimeError(f"{args.type}未开发")
