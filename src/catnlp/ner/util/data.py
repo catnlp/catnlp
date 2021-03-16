@@ -1,9 +1,16 @@
-#!/usr/bin/python3
 # -*- coding: utf-8 -*-
+
+import copy
+import json
+import logging
+from os import supports_dir_fd
+
 import torch
 from torch import tensor
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
+
+logger = logging.getLogger(__name__)
 
 
 class NerDataLoader(DataLoader):
@@ -38,10 +45,10 @@ class NerDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
-        self._data = list()
-        self._load_data_file(data_file, vocab, delimiter)
-
-    def _load_data_file(self, data_file, vocab, delimiter):
+        datas = self._load_conll_file(data_file, delimiter)
+        self._data = self._to_feature(datas, vocab)
+    
+    def _load_conll_file(self, data_file, delimiter='\t'):
         """
         加载数据集文件
         Args:
@@ -50,23 +57,39 @@ class NerDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
-        word_id_list = list()
-        label_id_list = list()
+        datas = list()
+        word_list = list()
+        label_list = list()
         with open(data_file, 'r', encoding='utf-8') as rf:
             for line in rf:
                 line = line.rstrip()
                 if line:
                     word, label = line.split(delimiter)
-                    word_id = vocab.get_word_id(word)
-                    word_id_list.append(word_id)
-                    label_id = vocab.get_label_id(label)
-                    label_id_list.append(label_id)
+                    word_list.append(word)
+                    label_list.append(label)
                 else:
-                    if word_id_list:
-                        data = [torch.tensor(word_id_list), torch.tensor(label_id_list)]
-                        self._data.append(data)
-                        word_id_list = list()
-                        label_id_list = list()
+                    if word_list:
+                        datas.append([word_list, label_list])
+                        word_list = list()
+                        label_list = list()
+        return datas
+
+    def _to_feature(self, datas, vocab):
+        """
+        加载数据集文件
+        Args:
+            data_file(str): 数据集文件路径
+            vocab(Vocab): 词典类
+        Returns: 无
+        """
+        features = list()
+        for (ex_index, data) in enumerate(datas):
+            word_ids = [vocab.get_word_id[x] for x in data[0]]
+            label_ids = [vocab.get_label_id[x] for x in data[1]]
+            word_ids = torch.tensor(word_ids, dtype=torch.long)
+            label_ids = torch.tensor(label_ids, dtype=torch.long)
+            features.append([word_ids, label_ids])
+        return features
 
     def __len__(self):
         return len(self._data)
@@ -86,21 +109,12 @@ class NerBertDataLoader(DataLoader):
                                             collate_fn=self._collate_fn,
                                             drop_last=drop_last)
 
-    def _collate_fn(self, data):
-        all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-        all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-        all_label_ids = torch.tensor([f.label_ids for f in features], dtype=torch.long)
-        all_lens = torch.tensor([f.input_len for f in features], dtype=torch.long)
-        word = pad_sequence([x[0] for x in data], batch_first=True,
-                            padding_value=0)
-        all_input_ids, all_attention_mask, all_token_type_ids, all_lens, all_labels = map(torch.stack, zip(*data))
-        max_len = max(all_lens).item()
-        all_input_ids = all_input_ids[:, :max_len]
-        all_attention_mask = all_attention_mask[:, :max_len]
-        all_token_type_ids = all_token_type_ids[:, :max_len]
-        all_labels = all_labels[:,:max_len]
-        return all_input_ids, all_attention_mask, all_token_type_ids, all_labels,all_lens
+    def _collate_fn(self, features):
+        all_input_ids = pad_sequence([f.input_ids for f in features], batch_first=True, padding_value=0)
+        all_input_mask = pad_sequence([f.input_mask for f in features], batch_first=True, padding_value=0)
+        all_segment_ids = pad_sequence([f.segment_ids for f in features], batch_first=True, padding_value=0)
+        all_label_ids = pad_sequence([f.label_ids for f in features], batch_first=True, padding_value=0)
+        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids
 
 
 class NerBertDataset(Dataset):
@@ -116,7 +130,6 @@ class NerBertDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
-        self._data = list()
         datas = self._load_conll_file(data_file, delimiter)
         self._data = self._to_feature(datas, vocab)
 
@@ -141,28 +154,25 @@ class NerBertDataset(Dataset):
                     label_list.append(label)
                 else:
                     if word_list:
-                        # data = [torch.tensor(word_id_list), torch.tensor(label_id_list)]
                         datas.append([word_list, label_list])
                         word_list = list()
                         label_list = list()
         return datas
     
-    def _to_features(datas, vocab, max_seq_length,tokenizer,
-                                 cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=1,
-                                 sep_token="[SEP]",pad_on_left=False,pad_token=0,pad_token_segment_id=0,
-                                 sequence_a_segment_id=0,mask_padding_with_zero=True,):
+    def _to_features(datas, vocab, max_seq_length=-1, tokenizer=None,
+                     cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=1,
+                     sep_token="[SEP]",pad_on_left=False,pad_token=0,pad_token_segment_id=0,
+                     sequence_a_segment_id=0,mask_padding_with_zero=True,):
         """ Loads a data file into a list of `InputBatch`s
             `cls_token_at_end` define the location of the CLS token:
                 - False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
                 - True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
             `cls_token_segment_id` define the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
         """
-        features = []
+        features = list()
         for (ex_index, data) in enumerate(datas):
-            if ex_index % 10000 == 0:
-                logger.info("Writing example %d of %d", ex_index, len(datas))
-            tokens = tokenizer.tokenize(datas[0])
-            label_ids = [vocab.get_label_id[x] for x in datas[1]]
+            tokens = tokenizer.tokenize(data[0])
+            label_ids = [vocab.get_label_id[x] for x in data[1]]
             # Account for [CLS] and [SEP] with "- 2".
             special_tokens_count = 2
             if len(tokens) > max_seq_length - special_tokens_count:
@@ -232,11 +242,10 @@ class NerBertDataset(Dataset):
                 logger.info("segment_ids: %s", " ".join([str(x) for x in segment_ids]))
                 logger.info("label_ids: %s", " ".join([str(x) for x in label_ids]))
             input_ids = torch.tensor(input_ids, dtype=torch.long)
-            input_ids = torch.tensor(input_mask, dtype=torch.long)
-            input_ids = torch.tensor(input_ids, dtype=torch.long)
-            input_ids = torch.tensor(input_ids, dtype=torch.long)
-            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask,input_len = input_len,
-                                        segment_ids=segment_ids, label_ids=label_ids))
+            input_mask = torch.tensor(input_mask, dtype=torch.long)
+            segment_ids = torch.tensor(segment_ids, dtype=torch.long)
+            label_ids = torch.tensor(label_ids, dtype=torch.long)
+            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids))
         return features
 
     def __len__(self):
@@ -244,3 +253,24 @@ class NerBertDataset(Dataset):
 
     def __getitem__(self, idx):
         return self._data[idx]
+
+class InputFeatures(object):
+    """A single set of features of data."""
+    def __init__(self, input_ids, input_mask, input_len,segment_ids, label_ids):
+        self.input_ids = input_ids
+        self.input_mask = input_mask
+        self.segment_ids = segment_ids
+        self.label_ids = label_ids
+        self.input_len = input_len
+
+    def __repr__(self):
+        return str(self.to_json_string())
+
+    def to_dict(self):
+        """Serializes this instance to a Python dictionary."""
+        output = copy.deepcopy(self.__dict__)
+        return output
+
+    def to_json_string(self):
+        """Serializes this instance to a JSON string."""
+        return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
