@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import re
@@ -48,10 +47,7 @@ class DocTree:
                 root.children.append(node)
         
         for line in line_list[idx:]:
-            
-
-
-
+            pass
 
         return root        
 

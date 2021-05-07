@@ -14,14 +14,13 @@ class NerTrain:
     def __init__(self, config):
         logging.info(config)
         self.setup_seed(seed=config.get("seed"))
-        type = config.get("type", "")
-        if type == "bert":
+        model_type = config.get("type", "").lower()
+        if model_type == "bert":
             ner_train = BertTrain(config)
         else:
             ner_train = LstmTrain(config)
-        ner_train.train()
+            ner_train.train()
 
-    @staticmethod
     def setup_seed(self, seed):
         if not seed:
             seed = 100

@@ -64,10 +64,10 @@ class LstmTrain:
         # 构建模型
         logging.info(model_cfg)
         model_name = config["name"].lower()
-        if model_name == "BiLstmSoftmax":
+        if model_name == "bilstm_softmax":
             from .model.bilstm import BiLstmSoftmax
             model = BiLstmSoftmax(model_cfg)
-        elif model_name == "BiLstmCrf":
+        elif model_name == "bilstm_crf":
             from .model.bilstm import BiLstmCrf
             model = BiLstmCrf(model_cfg)
         else:
@@ -170,7 +170,7 @@ class LstmTrain:
             word_batch, label_batch = batch
             word_batch = word_batch.to(self.device)
             label_batch = label_batch.to(self.device)
-            loss_batch = self.model.calculate_loss(word_batch, label_batch)
+            loss_batch = self.model(word_batch, label_batch)
             loss += loss_batch.item()
         return loss
 

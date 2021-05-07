@@ -110,7 +110,7 @@ class BiLstmCrf(nn.Module):
         lstm_output = self.rnn_output_dropout(lstm_output)
         # lstm_output = self.norm(lstm_output)
         emission = self.hidden2tag(lstm_output)
-        if label_batch:
+        if label_batch is not None:
             loss = self.crf(emission, label_batch, masks)
             return -loss
         else:

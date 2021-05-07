@@ -45,10 +45,10 @@ class NerDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
-        datas = self._load_conll_file(data_file, delimiter)
+        datas = self._load_bio_file(data_file, delimiter)
         self._data = self._to_feature(datas, vocab)
     
-    def _load_conll_file(self, data_file, delimiter='\t'):
+    def _load_bio_file(self, data_file, delimiter='\t'):
         """
         加载数据集文件
         Args:
@@ -84,8 +84,10 @@ class NerDataset(Dataset):
         """
         features = list()
         for (ex_index, data) in enumerate(datas):
-            word_ids = [vocab.get_word_id[x] for x in data[0]]
-            label_ids = [vocab.get_label_id[x] for x in data[1]]
+            if ex_index < 3:
+                print(data)
+            word_ids = [vocab.get_word_id(x) for x in data[0]]
+            label_ids = [vocab.get_label_id(x) for x in data[1]]
             word_ids = torch.tensor(word_ids, dtype=torch.long)
             label_ids = torch.tensor(label_ids, dtype=torch.long)
             features.append([word_ids, label_ids])
@@ -130,10 +132,10 @@ class NerBertDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
-        datas = self._load_conll_file(data_file, delimiter)
+        datas = self._load_bio_file(data_file, delimiter)
         self._data = self._to_feature(datas, vocab)
 
-    def _load_conll_file(self, data_file, delimiter='\t'):
+    def _load_bio_file(self, data_file, delimiter='\t'):
         """
         加载数据集文件
         Args:
@@ -144,22 +146,32 @@ class NerBertDataset(Dataset):
         """
         datas = list()
         word_list = list()
-        label_list = list()
+        tag_list = list()
+        label_set = set()
         with open(data_file, 'r', encoding='utf-8') as rf:
             for line in rf:
                 line = line.rstrip()
                 if line:
-                    word, label = line.split(delimiter)
+                    word, tag = line.split(delimiter)
                     word_list.append(word)
-                    label_list.append(label)
+                    tag_list.append(tag)
+                    label_set.add(tag)
                 else:
                     if word_list:
-                        datas.append([word_list, label_list])
+                        datas.append([word_list, tag_list])
                         word_list = list()
-                        label_list = list()
+                        tag_list = list()
+        self.label_list = sorted(list(label_set))
+        self.label_to_id = {label: idx for idx, label in self.label_list}
         return datas
     
-    def _to_features(datas, vocab, max_seq_length=-1, tokenizer=None,
+    def get_label_list(self):
+        return self.label_list
+    
+    def get_label_to_id(self):
+        return self.label_to_id
+    
+    def _to_features(self, datas, max_seq_length=-1, tokenizer=None,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=1,
                      sep_token="[SEP]",pad_on_left=False,pad_token=0,pad_token_segment_id=0,
                      sequence_a_segment_id=0,mask_padding_with_zero=True,):
@@ -172,7 +184,7 @@ class NerBertDataset(Dataset):
         features = list()
         for (ex_index, data) in enumerate(datas):
             tokens = tokenizer.tokenize(data[0])
-            label_ids = [vocab.get_label_id[x] for x in data[1]]
+            label_ids = [self.label_to_id[x] for x in data[1]]
             # Account for [CLS] and [SEP] with "- 2".
             special_tokens_count = 2
             if len(tokens) > max_seq_length - special_tokens_count:
@@ -197,7 +209,7 @@ class NerBertDataset(Dataset):
             # For classification tasks, the first vector (corresponding to [CLS]) is
             # used as as the "sentence vector". Note that this only makes sense because
             # the entire model is fine-tuned.
-            O_id = vocab.get_label_id('O')
+            O_id = self.label_to_id("O")
             tokens += [sep_token]
             label_ids += [O_id]
             segment_ids = [sequence_a_segment_id] * len(tokens)
@@ -222,12 +234,12 @@ class NerBertDataset(Dataset):
                 input_ids = ([pad_token] * padding_length) + input_ids
                 input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
                 segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
-                label_ids = ([pad_token] * padding_length) + label_ids
+                label_ids = ([0] * padding_length) + label_ids
             else:
                 input_ids += [pad_token] * padding_length
                 input_mask += [0 if mask_padding_with_zero else 1] * padding_length
                 segment_ids += [pad_token_segment_id] * padding_length
-                label_ids += [pad_token] * padding_length
+                label_ids += [0] * padding_length
 
             assert len(input_ids) == max_seq_length
             assert len(input_mask) == max_seq_length
@@ -235,7 +247,6 @@ class NerBertDataset(Dataset):
             assert len(label_ids) == max_seq_length
             if ex_index < 5:
                 logger.info("*** Example ***")
-                logger.info("guid: %s", example.guid)
                 logger.info("tokens: %s", " ".join([str(x) for x in tokens]))
                 logger.info("input_ids: %s", " ".join([str(x) for x in input_ids]))
                 logger.info("input_mask: %s", " ".join([str(x) for x in input_mask]))
@@ -274,3 +285,17 @@ class InputFeatures(object):
     def to_json_string(self):
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
+
+
+def collate_fn(batch):
+    """
+    batch should be a list of (sequence, target, length) tuples...
+    Returns a padded tensor of sequences sorted from longest to shortest,
+    """
+    all_input_ids, all_attention_mask, all_token_type_ids, all_lens, all_labels = map(torch.stack, zip(*batch))
+    max_len = max(all_lens).item()
+    all_input_ids = all_input_ids[:, :max_len]
+    all_attention_mask = all_attention_mask[:, :max_len]
+    all_token_type_ids = all_token_type_ids[:, :max_len]
+    all_labels = all_labels[:,:max_len]
+    return all_input_ids, all_attention_mask, all_token_type_ids, all_labels,all_lens
