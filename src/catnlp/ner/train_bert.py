@@ -55,7 +55,6 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 class BertTrain:
     def __init__(self, config) -> None:
-        print(config)
         if config.get("output") is not None:
             os.makedirs(config.get("output"), exist_ok=True)
 
@@ -161,6 +160,7 @@ class BertTrain:
 
         # Use the device given by the `accelerator` object.
         device = accelerator.device
+        print(device)
         model.to(device)
 
         # Prepare everything with our `accelerator`.
