@@ -7,7 +7,7 @@ from os import supports_dir_fd
 
 import torch
 from torch import tensor
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, TensorDataset
 from torch.nn.utils.rnn import pad_sequence
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class NerDataset(Dataset):
         Returns: 无
         """
         datas = self._load_bio_file(data_file, delimiter)
-        self._data = self._to_feature(datas, vocab)
+        self._data = self._to_features(datas, vocab)
     
     def _load_bio_file(self, data_file, delimiter='\t'):
         """
@@ -74,7 +74,7 @@ class NerDataset(Dataset):
                         label_list = list()
         return datas
 
-    def _to_feature(self, datas, vocab):
+    def _to_features(self, datas, vocab):
         """
         加载数据集文件
         Args:
@@ -123,7 +123,7 @@ class NerBertDataset(Dataset):
     """
     数据集类
     """
-    def __init__(self, data_file, vocab, delimiter="\t"):
+    def __init__(self, data_file, tokenizer, max_seq_length, delimiter="\t"):
         """
         初始化数据集类
         Args:
@@ -133,7 +133,7 @@ class NerBertDataset(Dataset):
         Returns: 无
         """
         datas = self._load_bio_file(data_file, delimiter)
-        self._data = self._to_feature(datas, vocab)
+        self._data = self._to_features(datas, tokenizer, max_seq_length)
 
     def _load_bio_file(self, data_file, delimiter='\t'):
         """
@@ -162,7 +162,7 @@ class NerBertDataset(Dataset):
                         word_list = list()
                         tag_list = list()
         self.label_list = sorted(list(label_set))
-        self.label_to_id = {label: idx for idx, label in self.label_list}
+        self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
         return datas
     
     def get_label_list(self):
@@ -171,7 +171,7 @@ class NerBertDataset(Dataset):
     def get_label_to_id(self):
         return self.label_to_id
     
-    def _to_features(self, datas, max_seq_length=-1, tokenizer=None,
+    def _to_features(self, datas, tokenizer=None, max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=1,
                      sep_token="[SEP]",pad_on_left=False,pad_token=0,pad_token_segment_id=0,
                      sequence_a_segment_id=0,mask_padding_with_zero=True,):
@@ -209,7 +209,7 @@ class NerBertDataset(Dataset):
             # For classification tasks, the first vector (corresponding to [CLS]) is
             # used as as the "sentence vector". Note that this only makes sense because
             # the entire model is fine-tuned.
-            O_id = self.label_to_id("O")
+            O_id = self.label_to_id.get("O")
             tokens += [sep_token]
             label_ids += [O_id]
             segment_ids = [sequence_a_segment_id] * len(tokens)
@@ -252,12 +252,13 @@ class NerBertDataset(Dataset):
                 logger.info("input_mask: %s", " ".join([str(x) for x in input_mask]))
                 logger.info("segment_ids: %s", " ".join([str(x) for x in segment_ids]))
                 logger.info("label_ids: %s", " ".join([str(x) for x in label_ids]))
-            input_ids = torch.tensor(input_ids, dtype=torch.long)
-            input_mask = torch.tensor(input_mask, dtype=torch.long)
-            segment_ids = torch.tensor(segment_ids, dtype=torch.long)
-            label_ids = torch.tensor(label_ids, dtype=torch.long)
             features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids))
-        return features
+        all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+        all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
+        all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
+        all_label_ids = torch.tensor([f.label_ids for f in features], dtype=torch.long)
+        dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        return dataset
 
     def __len__(self):
         return len(self._data)
@@ -267,12 +268,11 @@ class NerBertDataset(Dataset):
 
 class InputFeatures(object):
     """A single set of features of data."""
-    def __init__(self, input_ids, input_mask, input_len,segment_ids, label_ids):
+    def __init__(self, input_ids, input_mask, segment_ids, label_ids):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_ids = label_ids
-        self.input_len = input_len
 
     def __repr__(self):
         return str(self.to_json_string())
@@ -292,10 +292,5 @@ def collate_fn(batch):
     batch should be a list of (sequence, target, length) tuples...
     Returns a padded tensor of sequences sorted from longest to shortest,
     """
-    all_input_ids, all_attention_mask, all_token_type_ids, all_lens, all_labels = map(torch.stack, zip(*batch))
-    max_len = max(all_lens).item()
-    all_input_ids = all_input_ids[:, :max_len]
-    all_attention_mask = all_attention_mask[:, :max_len]
-    all_token_type_ids = all_token_type_ids[:, :max_len]
-    all_labels = all_labels[:,:max_len]
-    return all_input_ids, all_attention_mask, all_token_type_ids, all_labels,all_lens
+    all_input_ids, all_attention_mask, all_token_type_ids, all_labels = map(torch.stack, zip(*batch))
+    return all_input_ids, all_attention_mask, all_token_type_ids, all_labels

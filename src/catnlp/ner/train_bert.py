@@ -94,9 +94,9 @@ class BertTrain:
         train_file = input_dir / "train.txt"
         dev_file = input_dir / "dev.txt"
         vocab_file = Path(config.get("model_path")) / "vocab.txt"
-        tokenizer = NerBertTokenizer.from_pretrained( do_lower_case=config.get("do_lower_case"))
-        train_dataset = NerBertDataset(train_file, tokenizer)
-        dev_dataset = NerBertDataset(dev_file, tokenizer)
+        tokenizer = NerBertTokenizer(vocab_file, do_lower_case=config.get("do_lower_case"))
+        train_dataset = NerBertDataset(train_file, tokenizer, config.get("max_length"))
+        dev_dataset = NerBertDataset(dev_file, tokenizer, config.get("max_length"))
 
 
         # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
@@ -109,11 +109,11 @@ class BertTrain:
         #
         # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
         # download model & vocab.
-        config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=num_labels)
+        bert_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=num_labels)
 
         model = BertSoftmax.from_pretrained(
             config.get("model_path"),
-            config=config,
+            config=bert_config,
         )
 
         model.resize_token_embeddings(len(tokenizer))
@@ -122,9 +122,9 @@ class BertTrain:
         # First we tokenize all the texts.
         padding = "max_length" if config.get("pad_to_max_length") else False
 
-        # Log a few random samples from the training set:
-        for index in random.sample(range(len(train_dataset)), 3):
-            logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+        # # Log a few random samples from the training set:
+        # for index in random.sample(range(len(train_dataset)), 3):
+        #     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
         # DataLoaders creation:
         if config.get("pad_to_max_length"):
@@ -242,8 +242,9 @@ class BertTrain:
         for epoch in range(config.get("num_train_epochs")):
             model.train()
             for step, batch in enumerate(train_dataloader):
-                outputs = model(**batch)
-                loss = outputs.loss
+                inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3]}
+                outputs = model(**inputs)
+                loss = outputs[0]
                 loss = loss / config.get("gradient_accumulation_steps")
                 accelerator.backward(loss)
                 if step % config.get("gradient_accumulation_steps") == 0 or step == len(train_dataloader) - 1:
@@ -259,9 +260,10 @@ class BertTrain:
             model.eval()
             for step, batch in enumerate(dev_dataloader):
                 with torch.no_grad():
-                    outputs = model(**batch)
+                    inputs = {"input_ids": batch[0], "attention_mask": batch[1]}
+                    outputs = model(**inputs)
                 predictions = outputs.logits.argmax(dim=-1)
-                labels = batch["labels"]
+                labels = batch[3]
                 if not config.get("pad_to_max_length"):  # necessary to pad predictions and labels for being gathered
                     predictions = accelerator.pad_across_processes(predictions, dim=1, pad_index=-100)
                     labels = accelerator.pad_across_processes(labels, dim=1, pad_index=-100)
