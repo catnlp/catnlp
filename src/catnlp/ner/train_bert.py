@@ -262,7 +262,7 @@ class BertTrain:
                 with torch.no_grad():
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1]}
                     outputs = model(**inputs)
-                predictions = outputs.logits.argmax(dim=-1)
+                predictions = outputs[0].argmax(dim=-1)
                 labels = batch[3]
                 if not config.get("pad_to_max_length"):  # necessary to pad predictions and labels for being gathered
                     predictions = accelerator.pad_across_processes(predictions, dim=1, pad_index=-100)
