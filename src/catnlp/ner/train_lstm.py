@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .util.progressbar import ProgressBar
 from .util.vocab import Vocab
 from .util.embed import get_embed
-from .util.data import NerDataset, NerDataLoader
+from .util.data import NerLstmDataset, NerLstmDataLoader
 from .util.score import get_f1
 
 
@@ -50,11 +50,11 @@ class LstmTrain:
         model_cfg['label_size'] = vocab.get_label_size()
 
         # 数据处理
-        train_data = NerDataset(train_file, vocab, delimiter=delimiter)
-        dev_data = NerDataset(dev_file, vocab, delimiter=delimiter)
+        train_data = NerLstmDataset(train_file, vocab, delimiter=delimiter)
+        dev_data = NerLstmDataset(dev_file, vocab, delimiter=delimiter)
 
-        self.train_loader = NerDataLoader(train_data, train_cfg["batch"], shuffle=True, drop_last=True)
-        self.dev_loader = NerDataLoader(dev_data, train_cfg["batch"], shuffle=False, drop_last=False)
+        self.train_loader = NerLstmDataLoader(train_data, train_cfg["batch"], shuffle=True, drop_last=True)
+        self.dev_loader = NerLstmDataLoader(dev_data, train_cfg["batch"], shuffle=False, drop_last=False)
 
         # 构建word2vec
         model_cfg["embed"] = \

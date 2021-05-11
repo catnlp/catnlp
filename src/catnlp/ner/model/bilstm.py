@@ -100,7 +100,7 @@ class BiLstmCrf(nn.Module):
         word_embeds = self.embedding(word_batch)
         word_embeds = self.rnn_input_dropout(word_embeds)
         packed_words = pack_padded_sequence(word_embeds,
-                                            len_list,
+                                            len_list.cpu(),
                                             batch_first=True,
                                             enforce_sorted=False)
         lstm_output, _ = self.lstm(packed_words)

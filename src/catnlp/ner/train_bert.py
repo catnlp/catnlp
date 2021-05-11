@@ -17,40 +17,29 @@
 Fine-tuning a 🤗 Transformers model on token classification tasks (NER, POS, CHUNKS) relying on the accelerate library
 without using a Trainer.
 """
-from pathlib import Path
 import logging
 import math
 import os
-import random
+from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from tqdm.auto import tqdm
-
 import transformers
 from accelerate import Accelerator
 from datasets import load_metric
 from transformers import (
-    CONFIG_MAPPING,
-    MODEL_MAPPING,
     AdamW,
     AutoConfig,
-    AutoModelForTokenClassification,
-    DataCollatorForTokenClassification,
-    SchedulerType,
     get_scheduler,
     set_seed,
 )
 
 from .model.bert import BertSoftmax
-from .util.data import collate_fn, NerBertDataset
+from .util.data import NerBertDataset, NerBertDataLoader
 from .util.tokenizer import NerBertTokenizer
 
 
 logger = logging.getLogger(__name__)
-# You should update this to your particular problem to have better documentation of `model_type`
-MODEL_CONFIG_CLASSES = list(MODEL_MAPPING.keys())
-MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 
 class BertTrain:
@@ -121,27 +110,8 @@ class BertTrain:
         # First we tokenize all the texts.
         padding = "max_length" if config.get("pad_to_max_length") else False
 
-        # # Log a few random samples from the training set:
-        # for index in random.sample(range(len(train_dataset)), 3):
-        #     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-
-        # DataLoaders creation:
-        if config.get("pad_to_max_length"):
-            # If padding was already done ot max length, we use the default data collator that will just convert everything
-            # to tensors.
-            data_collator = collate_fn
-        else:
-            # Otherwise, `DataCollatorForTokenClassification` will apply dynamic padding for us (by padding to the maximum length of
-            # the samples passed). When using mixed precision, we add `pad_to_multiple_of=8` to pad all tensors to multiple
-            # of 8s, which will enable the use of Tensor Cores on NVIDIA hardware with compute capability >= 7.5 (Volta).
-            data_collator = DataCollatorForTokenClassification(
-                tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None)
-            )
-
-        train_dataloader = DataLoader(
-            train_dataset, shuffle=True, collate_fn=data_collator, batch_size=config.get("per_device_train_batch_size")
-        )
-        dev_dataloader = DataLoader(dev_dataset, collate_fn=data_collator, batch_size=config.get("per_device_eval_batch_size"))
+        train_dataloader = NerBertDataLoader(train_dataset, batch_size=config.get("per_device_train_batch_size"), shuffle=True, drop_last=True)
+        dev_dataloader = NerBertDataLoader(dev_dataset, batch_size=config.get("per_device_dev_batch_size"), shuffle=False, drop_last=False)
 
         # Optimizer
         # Split weights in two groups, one with weight decay and the other not.
@@ -160,7 +130,6 @@ class BertTrain:
 
         # Use the device given by the `accelerator` object.
         device = accelerator.device
-        print(device)
         model.to(device)
 
         # Prepare everything with our `accelerator`.

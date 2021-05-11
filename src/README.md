@@ -12,7 +12,7 @@
 
 ```
 cd src
-python train.py --task=NER --train_config=data/config/ner/bilstm_crf.yaml --log_config=data/config/ner/logging.yaml
+python train.py --task=NER --train_config=data/config/ner/bilstm.yaml --log_config=data/config/ner/logging.yaml
 ```
 
 #### BERT

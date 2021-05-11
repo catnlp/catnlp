@@ -13,12 +13,12 @@ from torch.nn.utils.rnn import pad_sequence
 logger = logging.getLogger(__name__)
 
 
-class NerDataLoader(DataLoader):
+class NerLstmDataLoader(DataLoader):
     """
     数据加载器
     """
     def __init__(self, dataset, batch_size, shuffle=False, drop_last=False):
-        super(NerDataLoader, self).__init__(dataset,
+        super(NerLstmDataLoader, self).__init__(dataset,
                                             batch_size=batch_size,
                                             shuffle=shuffle,
                                             collate_fn=self._collate_fn,
@@ -32,7 +32,7 @@ class NerDataLoader(DataLoader):
         return word, label
 
 
-class NerDataset(Dataset):
+class NerLstmDataset(Dataset):
     """
     数据集类
     """
@@ -105,11 +105,11 @@ class NerBertDataLoader(DataLoader):
     数据加载器
     """
     def __init__(self, dataset, batch_size, shuffle=False, drop_last=False):
-        super(NerDataLoader, self).__init__(dataset,
-                                            batch_size=batch_size,
-                                            shuffle=shuffle,
-                                            collate_fn=self._collate_fn,
-                                            drop_last=drop_last)
+        super(NerBertDataLoader, self).__init__(dataset,
+                                                batch_size=batch_size,
+                                                shuffle=shuffle,
+                                                collate_fn=self._collate_fn,
+                                                drop_last=drop_last)
 
     def _collate_fn(self, features):
         all_input_ids = pad_sequence([f.input_ids for f in features], batch_first=True, padding_value=0)
@@ -252,13 +252,12 @@ class NerBertDataset(Dataset):
                 logger.info("input_mask: %s", " ".join([str(x) for x in input_mask]))
                 logger.info("segment_ids: %s", " ".join([str(x) for x in segment_ids]))
                 logger.info("label_ids: %s", " ".join([str(x) for x in label_ids]))
+            input_ids = torch.tensor(input_ids, dtype=torch.long)
+            input_mask = torch.tensor(input_mask, dtype=torch.long)
+            segment_ids = torch.tensor(segment_ids, dtype=torch.long)
+            label_ids = torch.tensor(label_ids, dtype=torch.long)
             features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids))
-        all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-        all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-        all_label_ids = torch.tensor([f.label_ids for f in features], dtype=torch.long)
-        dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
-        return dataset
+        return features
 
     def __len__(self):
         return len(self._data)
@@ -285,12 +284,3 @@ class InputFeatures(object):
     def to_json_string(self):
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
-
-
-def collate_fn(batch):
-    """
-    batch should be a list of (sequence, target, length) tuples...
-    Returns a padded tensor of sequences sorted from longest to shortest,
-    """
-    all_input_ids, all_attention_mask, all_token_type_ids, all_labels = map(torch.stack, zip(*batch))
-    return all_input_ids, all_attention_mask, all_token_type_ids, all_labels
