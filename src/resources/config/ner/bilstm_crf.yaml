@@ -1,0 +1,20 @@
+type: BiLSTM
+name: BiLSTM_CRF
+seed: 42
+train:
+  cuda: True
+  batch: 24
+  epoch: 30
+  lr: 0.01
+  optim: "Adam"
+  delimiter: "\t"
+  tag_format: "bio"
+  embed_format: "word2vec"
+  input: "resources/data/dataset/ner/zh/cluener/bio"
+  output: "resources/data/output/ner/zh/cluener"
+  embedding: "resources/data/embed/character.vec.txt"
+model:
+  word_dim: 100
+  hidden_dim: 150
+  num_layer: 3
+  dropout: 0.4
