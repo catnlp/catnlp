@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import json
+from collections import defaultdict
+
+import numpy as np
 
 from .util.clean import clean_text
+from ..tool import visual
 
 
 class NerFormat:
@@ -260,3 +264,75 @@ class NerFormat:
                     'text': text,
                     'label': entity_dict
                 }, ensure_ascii=False) + '\n')
+
+
+class JsonFormat:
+    def __init__(self, data_file) -> None:
+        self._data = self.load(data_file)
+
+    def load(self, data_file):
+        datas = list()
+        with open(data_file, "r", encoding="utf-8") as df:
+            for line in df:
+                line = json.loads(line)
+                if not line:
+                    continue
+                datas.append(line)
+        return datas
+
+    def get_text(self):
+        text_list = list()
+        for data in self._data:
+            text = data.get("text")
+            if text:
+                text_list.append(text)
+        return text_list
+
+    def get_text_len(self):
+        text_list = self.get_text()
+        return [len(text) for text in text_list]
+    
+    def get_label_dict(self):
+        label_dict = defaultdict(int)
+        for data in self._data:
+            labels = data.get("labels")
+            for label in labels:
+                _, _, tag = label
+                label_dict[tag] += 1
+        return label_dict
+
+    def size(self):
+        return len(self._data)
+    
+    def statistics(self):
+        len_list = self.get_text_len()
+        len_array = np.array(sorted(len_list))
+        length = len_array.size
+        len_mean = np.mean(len_array)
+        len_std = np.std(len_array)
+        len_min = len_array[0]
+        len_50 = len_array[int(length * 0.5)]
+        len_70 = len_array[int(length * 0.7)]
+        len_90 = len_array[int(length * 0.9)]
+        len_max = len_array[-1]
+        print(f"count:\t{length}")
+        print(f"mean:\t{round(len_mean, 2)}")
+        print(f"std:\t{round(len_std, 2)}")
+        print(f"min:\t{len_min}")
+        print(f"50%:\t{round(len_50, 2)}")
+        print(f"70%:\t{round(len_70, 2)}")
+        print(f"90%:\t{round(len_90, 2)}")
+        print(f"max:\t{len_max}")
+    
+    def draw_histogram(self, num_bins=100, density=False):
+        len_list = self.get_text_len()
+        len_list = np.array(len_list)
+        visual.draw_histogram(len_list, num_bins=num_bins, density=density)
+
+    def draw_hbar(self):
+        label_dict = self.get_label_dict()
+        label_list = label_dict.items()
+        label_list = sorted(label_list, key=lambda i: i[1], reverse=True)
+        labels = [i[0] for i in label_list]
+        datas = [i[1] for i in label_list]
+        visual.draw_hbar(labels, datas)
