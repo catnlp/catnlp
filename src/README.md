@@ -35,15 +35,11 @@ python analysis.py
 
 #### BiLSTM
 
-**运行**
-
 ```
 python train.py --task=NER --train_config=data/config/ner/bilstm.yaml --log_config=data/config/ner/logging.yaml
 ```
 
 #### BERT
-
-**运行**
 
 ```
 python train.py --task=NER --train_config=data/config/ner/bert.yaml --log_config=data/config/ner/logging.yaml
