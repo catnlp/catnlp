@@ -27,7 +27,7 @@ python analysis.py
 
 文本长度直方图
 
-![histogram](../image/ner/histogram.png)
+![histogram](../image/ner/hist.png)
 
 类别数目横条图
 

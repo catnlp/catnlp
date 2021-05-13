@@ -8,7 +8,7 @@ from catnlp.ner.format import JsonFormat
 def analysis_ner(source):
     ner_data = JsonFormat(source)
     ner_data.statistics()
-    ner_data.draw_histogram(num_bins=100, density=True)
+    ner_data.draw_histogram(num_bins=100, density=False)
     ner_data.draw_hbar()
     plt.show()
 
