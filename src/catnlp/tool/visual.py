@@ -46,3 +46,19 @@ def draw_hbar(labels, datas):
      auto_text(ax, rects)
 
 
+def draw_scatter(x, y, s, c):
+     fig, ax = plt.subplots()
+     ax.scatter(x, y, s, c)
+
+if __name__ == "__main__":
+     # Fixing random state for reproducibility
+     np.random.seed(19680801)
+
+     x, y, s, c = np.random.rand(4, 30)
+     c[:10] = [1] * 10
+     c[10:20] = [2] * 10
+     c[20:] = [3] * 10
+     s *= 10**2.
+     draw_scatter(x, y, s, c)
+
+     plt.show()
