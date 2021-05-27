@@ -115,7 +115,7 @@ class BertCrf(BertPreTrainedModel):
         logits = self.classifier(sequence_output)
 
         if labels is not None:
-            output = self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
+            output = -self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
         else:
             output = self.crf.decode(emissions=logits, mask=attention_mask.byte())
 
