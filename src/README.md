@@ -6,6 +6,10 @@
 
 ### 命名实体识别（NER）
 
+#### 想法
+
+- FLAT + 词典类别，添加词典包括词典的类别
+
 #### 分析工具
 
 ```
@@ -43,4 +47,10 @@ python train.py --task=NER --train_config=data/config/ner/bilstm.yaml --log_conf
 
 ```
 python train.py --task=NER --train_config=data/config/ner/bert.yaml --log_config=data/config/ner/logging.yaml
+```
+
+#### ALBERT_TINY
+
+```
+python train.py --task=NER --train_config=data/config/ner/albert_tiny.yaml --log_config=data/config/ner/logging.yaml
 ```

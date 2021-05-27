@@ -4,20 +4,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import (
-    BertModel,
-    BertPreTrainedModel
+    AlbertModel,
+    AlbertPreTrainedModel
 )
 from torch.nn import CrossEntropyLoss
 from ...layer.decoder.crf import CRF
 
 
-class BertSoftmax(BertPreTrainedModel):
+class AlbertTinySoftmax(AlbertPreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.model = BertModel(config, add_pooling_layer=False)
+        self.model = AlbertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.loss_func = CrossEntropyLoss()
@@ -73,12 +73,12 @@ class BertSoftmax(BertPreTrainedModel):
         return output
 
 
-class BertCrf(BertPreTrainedModel):
+class AlbertTinyCrf(AlbertPreTrainedModel):
     def __init__(self, config, label_size):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.model = BertModel(config, add_pooling_layer=False)
+        self.model = AlbertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.crf = CRF(num_tags=label_size, batch_first=True)
@@ -115,7 +115,7 @@ class BertCrf(BertPreTrainedModel):
         logits = self.classifier(sequence_output)
 
         if labels is not None:
-            output = self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
+            output = -self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
         else:
             output = self.crf.decode(emissions=logits, mask=attention_mask.byte())
 

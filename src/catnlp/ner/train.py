@@ -6,7 +6,8 @@ import random
 import numpy as np
 import torch
 
-from .train_bert import BertTrain
+from .train_pretrained_crf import PretrainedCrfTrain
+from .train_pretrained_softmax import PretrainedSoftmaxTrain
 from .train_lstm import LstmTrain
 
 
@@ -15,8 +16,10 @@ class NerTrain:
         logging.info(config)
         self.setup_seed(seed=config.get("seed"))
         model_type = config.get("type", "").lower()
-        if model_type == "bert":
-            ner_train = BertTrain(config)
+        if model_type == "pretrained_softmax":
+            ner_train = PretrainedSoftmaxTrain(config)
+        elif model_type == "pretrained_crf":
+            ner_train = PretrainedCrfTrain(config)
         else:
             ner_train = LstmTrain(config)
             ner_train.train()

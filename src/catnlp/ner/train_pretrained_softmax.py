@@ -34,6 +34,7 @@ from transformers import (
     set_seed,
 )
 
+from .model.albert_tiny import AlbertTinySoftmax
 from .model.bert import BertSoftmax
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.tokenizer import NerBertTokenizer
@@ -42,7 +43,7 @@ from .util.tokenizer import NerBertTokenizer
 logger = logging.getLogger(__name__)
 
 
-class BertTrain:
+class PretrainedSoftmaxTrain:
     def __init__(self, config) -> None:
         if config.get("output") is not None:
             os.makedirs(config.get("output"), exist_ok=True)
@@ -97,14 +98,21 @@ class BertTrain:
         #
         # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
         # download model & vocab.
-        bert_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=num_labels)
+        pretrained_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=num_labels)
 
-        model = BertSoftmax.from_pretrained(
+        model_func = None
+        model_name = config.get("name").lower()
+        if model_name == "bert_softmax":
+            model_func = BertSoftmax
+        elif model_name == "albert_tiny_softmax":
+            model_func = AlbertTinySoftmax
+
+        model = model_func.from_pretrained(
             config.get("model_path"),
-            config=bert_config,
+            config=pretrained_config,
         )
 
-        model.resize_token_embeddings(len(tokenizer))
+        # model.resize_token_embeddings(len(tokenizer))
 
         # Preprocessing the raw_datasets.
         # First we tokenize all the texts.
@@ -213,7 +221,7 @@ class BertTrain:
             for step, batch in enumerate(train_dataloader):
                 inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3]}
                 outputs = model(**inputs)
-                loss = outputs[0]
+                loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
                 accelerator.backward(loss)
                 if step % config.get("gradient_accumulation_steps") == 0 or step == len(train_dataloader) - 1:
@@ -231,7 +239,7 @@ class BertTrain:
                 with torch.no_grad():
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1]}
                     outputs = model(**inputs)
-                predictions = outputs[0].argmax(dim=-1)
+                predictions = outputs.argmax(dim=-1)
                 labels = batch[3]
                 if not config.get("pad_to_max_length"):  # necessary to pad predictions and labels for being gathered
                     predictions = accelerator.pad_across_processes(predictions, dim=1, pad_index=-100)
