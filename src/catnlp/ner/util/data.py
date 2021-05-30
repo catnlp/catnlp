@@ -167,7 +167,7 @@ class NerBertDataset(Dataset):
     
     def get_label_list(self):
         return self.label_list
-    
+
     def get_label_to_id(self):
         return self.label_to_id
     
