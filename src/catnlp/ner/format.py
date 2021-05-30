@@ -6,6 +6,7 @@ from collections import defaultdict
 import numpy as np
 
 from .util.clean import clean_text
+from .util.split import cut, recover
 from ..tool import visual
 
 
@@ -23,6 +24,10 @@ class NerFormat:
             self._json2clue(source, target, is_clean)
         elif format == "clue2json":
             self._clue2json(source, target, is_clean)
+        elif format == "json2split":
+            self._json2split(source, target, is_clean)
+        elif format == "split2json":
+            self._split2json(source, target, is_clean)
         else:
             raise RuntimeError(f"无效格式：{format}")
         print(f"{format}格式转换成功")
@@ -263,6 +268,70 @@ class NerFormat:
                 tf.write(json.dumps({
                     'text': text,
                     'label': entity_dict
+                }, ensure_ascii=False) + '\n')
+    
+    def _split2json(self, source, target, is_clean=False):
+        """
+        split格式转json格式
+        Args:
+            source(str): split格式的文件路径
+            target(str): json格式的文件路径
+        Returns:
+            None
+        """
+        with open(source, 'r', encoding='utf-8') as sf, \
+                open(target, 'w', encoding='utf-8') as tf:
+            for line in sf:
+                line = json.loads(line)
+                if not line:
+                    continue
+                text = line['text']
+                sent_list = line['sents']
+                tag_lists = line['labels']
+                offset_list = line['offsets']
+                if is_clean:
+                    text = clean_text(text)
+                
+                entity_list = recover(tag_lists, offset_list)
+
+                tf.write(json.dumps({
+                    "text": text,
+                    "labels": entity_list
+                }, ensure_ascii=False) + "\n")
+
+    def _json2split(self, source, target, is_clean=False, max_len=30, overlap_len=10):
+        """
+        json格式转split格式
+        Args:
+            source(str): json格式的文件路径
+            target(str): split格式的文件路径
+        Returns:
+            None
+        """
+        with open(source, 'r', encoding='utf-8') as sf, \
+                open(target, 'w', encoding='utf-8') as tf:
+            for line in sf:
+                line = json.loads(line)
+                if not line:
+                    continue
+                text = line['text']
+                if is_clean:
+                    text = clean_text(text)
+                tag_list = ["O"] * len(text)
+                entities = line['labels']
+                for entity in entities:
+                    start, end, tag = entity
+                    tag_list[start] = f"B-{tag}"
+                    for i in range(start+1, end):
+                        tag_list[i] = f"I-{tag}"
+                
+                sent_list, tag_lists, offset_list = cut(text, tag_list, max_len, overlap_len)
+
+                tf.write(json.dumps({
+                    'text': text,
+                    'sents': sent_list,
+                    'labels': tag_lists,
+                    'offsets': offset_list
                 }, ensure_ascii=False) + '\n')
 
 
