@@ -1,8 +1,9 @@
-type: Pretrained_Crf
-name: Albert_Tiny_Crf
+type: Pretrained_Softmax
+name: Albert_Tiny_Softmax
 delimiter: "\t"
-input: "resources/data/dataset/ner/zh/cluener/bio"
-output: "resources/data/output/ner/zh/cluener/albert_tiny_crf/cluener"
+input: "resources/data/dataset/ner/zh/cluener/split"
+file_format: split
+output: "resources/data/output/ner/zh/cluener/albert_tiny_crf/cluener/split"
 max_length: 128
 pad_to_max_length: True
 model_path: resources/data/pretrained/albert_tiny_chinese

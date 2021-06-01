@@ -37,6 +37,7 @@ from transformers import (
 from .model.albert_tiny import AlbertTinySoftmax
 from .model.bert import BertSoftmax
 from .util.data import NerBertDataset, NerBertDataLoader
+from .util.split import recover
 from .util.tokenizer import NerBertTokenizer
 
 
@@ -79,13 +80,21 @@ class PretrainedSoftmaxTrain:
         #
         # In distributed training, the load_dataset function guarantee that only one local process can concurrently
         # download the dataset.
+        file_format = config.get("file_format")
         input_dir = Path(config.get("input"))
-        train_file = input_dir / "train.txt"
-        dev_file = input_dir / "dev.txt"
+        if file_format == "bio":
+            train_file = input_dir / "train.txt"
+            dev_file = input_dir / "dev.txt"
+        else:
+            train_file = input_dir / "train.json"
+            dev_file = input_dir / "dev.json"
         vocab_file = Path(config.get("model_path")) / "vocab.txt"
         tokenizer = NerBertTokenizer(vocab_file, do_lower_case=config.get("do_lower_case"))
-        train_dataset = NerBertDataset(train_file, tokenizer, config.get("max_length"))
-        dev_dataset = NerBertDataset(dev_file, tokenizer, config.get("max_length"))
+        train_dataset = NerBertDataset(train_file, tokenizer, config.get("max_length"), file_format=file_format)
+        dev_dataset = NerBertDataset(dev_file, tokenizer, config.get("max_length"), file_format=file_format)
+        if file_format == "split":
+            dev_contents = dev_dataset.get_contents()
+            dev_offset_lists = dev_dataset.get_offset_lists()
 
 
         # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
@@ -173,11 +182,11 @@ class PretrainedSoftmaxTrain:
 
             # Remove ignored index (special tokens)
             true_predictions = [
-                [label_list[p] for (p, l) in zip(pred, gold_label) if l > 1]
+                [label_list[p] for (p, l) in zip(pred, gold_label) if l > 0]
                 for pred, gold_label in zip(y_pred, y_true)
             ]
             true_labels = [
-                [label_list[l] for (p, l) in zip(pred, gold_label) if l > 1]
+                [label_list[l] for (p, l) in zip(pred, gold_label) if l > 0]
                 for pred, gold_label in zip(y_pred, y_true)
             ]
             return true_predictions, true_labels
@@ -235,6 +244,8 @@ class PretrainedSoftmaxTrain:
                     break
 
             model.eval()
+            pred_lists = list()
+            gold_lists = list()
             for step, batch in enumerate(dev_dataloader):
                 with torch.no_grad():
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1]}
@@ -247,11 +258,28 @@ class PretrainedSoftmaxTrain:
 
                 predictions_gathered = accelerator.gather(predictions)
                 labels_gathered = accelerator.gather(labels)
-                preds, refs = get_labels(predictions_gathered, labels_gathered)
-                metric.add_batch(
-                    predictions=preds,
-                    references=refs,
-                )  # predictions and preferences are expected to be a nested list of labels, not label_ids
+                preds, golds = get_labels(predictions_gathered, labels_gathered)
+                pred_lists += preds
+                gold_lists += golds
+            
+            if file_format == "split":
+                new_pred_lists = list()
+                new_gold_lists = list()
+                start_idx = 0
+                for dev_content, dev_offset_list in zip(dev_contents, dev_offset_lists):
+                    end_idx = start_idx + len(dev_offset_list)
+                    pred_list = recover(dev_content, pred_lists[start_idx: end_idx], dev_offset_list)
+                    gold_list = recover(dev_content, gold_lists[start_idx: end_idx], dev_offset_list)
+                    new_pred_lists.append(pred_list)
+                    new_gold_lists.append(gold_list)
+                    start_idx = end_idx
+                pred_lists = new_pred_lists
+                gold_lists = new_gold_lists
+
+            metric.add_batch(
+                predictions=pred_lists,
+                references=gold_lists,
+            )  # predictions and preferences are expected to be a nested list of labels, not label_ids
 
             # eval_metric = metric.compute()
             eval_metric = compute_metrics()

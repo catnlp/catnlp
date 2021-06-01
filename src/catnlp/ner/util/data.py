@@ -3,7 +3,6 @@
 import copy
 import json
 import logging
-from os import supports_dir_fd
 
 import torch
 from torch import tensor
@@ -123,7 +122,7 @@ class NerBertDataset(Dataset):
     """
     数据集类
     """
-    def __init__(self, data_file, tokenizer, max_seq_length, delimiter="\t"):
+    def __init__(self, data_file, tokenizer, max_seq_length, file_format="bio", delimiter="\t"):
         """
         初始化数据集类
         Args:
@@ -132,15 +131,23 @@ class NerBertDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
-        datas = self._load_bio_file(data_file, delimiter)
+        datas = self._load_file(data_file, file_format, delimiter)
         self._data = self._to_features(datas, tokenizer, max_seq_length)
+    
+    def _load_file(self, data_file, file_format, delimiter):
+        if file_format == "json":
+            return self._load_json_file(data_file)
+        elif file_format == "split":
+            return self._load_split_file(data_file)
+        else:
+            return self._load_bio_file(data_file, delimiter)
 
-    def _load_bio_file(self, data_file, delimiter='\t'):
+
+    def _load_bio_file(self, data_file, delimiter):
         """
         加载数据集文件
         Args:
             data_file(str): 数据集文件路径
-            vocab(Vocab): 词典类
             delimiter(str): 分隔符
         Returns: 无
         """
@@ -161,19 +168,97 @@ class NerBertDataset(Dataset):
                         datas.append([word_list, tag_list])
                         word_list = list()
                         tag_list = list()
-        self.label_list = sorted(list(label_set))
+        self.label_list = "[PAD]" + sorted(list(label_set))
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        self.contents = list()
+        self.offset_lists = list()
         return datas
     
+    def _load_json_file(self, data_file):
+        """
+        加载数据集文件
+        Args:
+            data_file(str): 数据集文件路径
+            delimiter(str): 分隔符
+        Returns: 无
+        """
+        datas = list()
+        label_set = set(["O"])
+        with open(data_file, 'r', encoding='utf-8') as rf:
+            for line in rf:
+                line = json.loads(line)
+                if not line:
+                    continue
+                text = line["text"]
+                entities = line["labels"]
+                tag_list = ["O"] * len(text)
+                for entity in entities:
+                    start, end, tag = entity
+                    label_set.add(f"B-{tag}")
+                    label_set.add(f"I-{tag}")
+                    tag_list[start] = f"B-{tag}"
+                    for i in range(start+1, end):
+                        tag_list[i] = f"I-{tag}"
+                datas.append([text, tag_list])
+        self.label_list = ["[PAD]"] + sorted(list(label_set))
+        self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        self.contents = list()
+        self.offset_lists = list()
+        return datas
+    
+    def _load_split_file(self, data_file):
+        """
+        加载数据集文件
+        Args:
+            data_file(str): 数据集文件路径
+        Returns: 无
+        """
+        datas = list()
+        label_set = set(["O"])
+        contents = list()
+        offset_lists = list()
+        with open(data_file, 'r', encoding='utf-8') as rf:
+            for line in rf:
+                line = json.loads(line)
+                if not line:
+                    continue
+                content = line["text"]
+                offsets = line["offsets"]
+                contents.append(content)
+                offset_lists.append(offsets)
+                sents = line["sents"]
+                entity_lists = line["label_lists"]
+                for sent, entity_list in zip(sents, entity_lists):
+                    tag_list = ["O"] * len(sent)
+                    for entity in entity_list:
+                        start, end, tag = entity
+                        label_set.add(f"B-{tag}")
+                        label_set.add(f"I-{tag}")
+                        tag_list[start] = f"B-{tag}"
+                        for i in range(start+1, end):
+                            tag_list[i] = f"I-{tag}"
+                    datas.append([sent, tag_list])
+        self.label_list = ["[PAD]"] + sorted(list(label_set))
+        self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        self.contents = contents
+        self.offset_lists = offset_lists
+        return datas
+
     def get_label_list(self):
         return self.label_list
 
     def get_label_to_id(self):
         return self.label_to_id
-    
+
+    def get_contents(self):
+        return self.contents
+
+    def get_offset_lists(self):
+        return self.offset_lists
+
     def _to_features(self, datas, tokenizer=None, max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=1,
-                     sep_token="[SEP]",pad_on_left=False,pad_token=0,pad_token_segment_id=0,
+                     sep_token="[SEP]",pad_on_left=False,pad_token="[PAD]",pad_token_segment_id=0,
                      sequence_a_segment_id=0,mask_padding_with_zero=True,):
         """ Loads a data file into a list of `InputBatch`s
             `cls_token_at_end` define the location of the CLS token:
@@ -209,18 +294,18 @@ class NerBertDataset(Dataset):
             # For classification tasks, the first vector (corresponding to [CLS]) is
             # used as as the "sentence vector". Note that this only makes sense because
             # the entire model is fine-tuned.
-            O_id = self.label_to_id.get("O")
+            pad_id = self.label_to_id.get(pad_token)
             tokens += [sep_token]
-            label_ids += [O_id]
+            label_ids += [pad_id]
             segment_ids = [sequence_a_segment_id] * len(tokens)
 
             if cls_token_at_end:
                 tokens += [cls_token]
-                label_ids += [O_id]
+                label_ids += [pad_id]
                 segment_ids += [cls_token_segment_id]
             else:
                 tokens = [cls_token] + tokens
-                label_ids = [O_id] + label_ids
+                label_ids = [pad_id] + label_ids
                 segment_ids = [cls_token_segment_id] + segment_ids
 
             input_ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -231,15 +316,15 @@ class NerBertDataset(Dataset):
             # Zero-pad up to the sequence length.
             padding_length = max_seq_length - len(input_ids)
             if pad_on_left:
-                input_ids = ([pad_token] * padding_length) + input_ids
+                input_ids = ([pad_id] * padding_length) + input_ids
                 input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
                 segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
-                label_ids = ([0] * padding_length) + label_ids
+                label_ids = ([pad_id] * padding_length) + label_ids
             else:
-                input_ids += [pad_token] * padding_length
+                input_ids += [pad_id] * padding_length
                 input_mask += [0 if mask_padding_with_zero else 1] * padding_length
                 segment_ids += [pad_token_segment_id] * padding_length
-                label_ids += [0] * padding_length
+                label_ids += [pad_id] * padding_length
 
             assert len(input_ids) == max_seq_length
             assert len(input_mask) == max_seq_length

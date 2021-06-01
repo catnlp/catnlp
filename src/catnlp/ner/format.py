@@ -325,12 +325,12 @@ class NerFormat:
                     for i in range(start+1, end):
                         tag_list[i] = f"I-{tag}"
                 
-                sent_list, tag_lists, offset_list = cut(text, tag_list, max_len, overlap_len)
+                sent_list, entity_lists, offset_list = cut(text, tag_list, max_len, overlap_len)
 
                 tf.write(json.dumps({
                     'text': text,
                     'sents': sent_list,
-                    'labels': tag_lists,
+                    'label_lists': entity_lists,
                     'offsets': offset_list
                 }, ensure_ascii=False) + '\n')
 

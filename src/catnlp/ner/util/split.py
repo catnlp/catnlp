@@ -1,7 +1,7 @@
 import re
 
 
-def cut(text, tags, max_len, overlap_len):
+def cut(text, tags=None, max_len=256, overlap_len=50):
     sents = re.split(r'([。？?，,；;！!]|(?<!\d)\.(?!\d))', text)
     sents_len = len(sents)
     offset_list = list()
@@ -9,6 +9,7 @@ def cut(text, tags, max_len, overlap_len):
     end_idx = 0
     sent_list = list()
     tag_lists = list()
+    entity_lists = list()
     while i < sents_len:
         sent = sents[i]
         sent_len = len(sent)
@@ -59,24 +60,39 @@ def cut(text, tags, max_len, overlap_len):
         end_idx += post_list_len
         start_idx = end_idx - len(sent)
         offset_list.append(start_idx)
-        tag_list = tags[start_idx: end_idx]
-        tag_lists.append(tag_list)
+        if tags:
+            tag_list = tags[start_idx: end_idx]
+            tag_lists.append(tag_list)
+            entity_list = get_entity_list(tag_list)
+            entity_lists.append(entity_list)
         i = j
 
     if valid(text, sent_list, offset_list):
-        return sent_list, tag_lists, offset_list
+        return sent_list, entity_lists, offset_list
     else:
         raise ValueError
 
 
-def recover(tag_lists, offset_list):
+def recover(text, tag_lists, offset_list):
     new_entity_list = list()
     for tag_list, offset in zip(tag_lists, offset_list):
         entity_list = get_entity_list(tag_list)
         for entity in entity_list:
             start, end, tag = entity
             new_entity_list.append([start+offset, end+offset, tag])
-    return new_entity_list
+    new_entity_list = merge_entities(new_entity_list)
+    tag_list = get_tag_list(text, new_entity_list)
+    return tag_list
+
+
+def get_tag_list(text, entity_list):
+    tag_list = ["O"] * len(text)
+    for entity in entity_list:
+        start, end, tag = entity
+        tag_list[start] = f"B-{tag}"
+        for i in range(start+1, end):
+            tag_list[i] = f"I-{tag}"
+    return tag_list
 
 
 def get_entity_list(tag_list):
@@ -95,6 +111,21 @@ def get_entity_list(tag_list):
         else:
             pre_label = "O"
     return entity_list
+
+
+def merge_entities(entity_list):
+    sorted_entity_list = sorted(entity_list, key=lambda i: i[1]-i[0], reverse=True)
+    new_entity_list = list()
+    is_appear_list = [False] * len(entity_list)
+    for idx, entity in enumerate(sorted_entity_list):
+        if is_appear_list[idx]:
+            continue
+        new_entity_list.append(entity)
+        for idy, tmp_entity in enumerate(sorted_entity_list[idx:]):
+            if entity[0] < tmp_entity[1] and \
+                    tmp_entity[0] < entity[1]:
+                is_appear_list[idx+idy] = True
+    return new_entity_list
 
 
 def valid(text, sent_list, offset_list):

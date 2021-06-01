@@ -2,6 +2,7 @@ type: Pretrained_Crf
 name: Bert_Crf
 delimiter: "\t"
 input: "resources/data/dataset/ner/zh/cluener/bio"
+file_format: bio
 output: "resources/data/output/ner/zh/cluener/bert_crf/cluener"
 max_length: 128
 pad_to_max_length: True
