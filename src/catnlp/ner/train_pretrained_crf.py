@@ -99,8 +99,11 @@ class PretrainedCrfTrain:
 
         # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
         # unique labels.
+        label_file = Path(config.get("output")) / "label.txt"
+        train_dataset.save_label(label_file)
         label_list = train_dataset.get_label_list()
         label_to_id = train_dataset.get_label_to_id()
+        print(label_to_id)
         num_labels = len(label_list)
 
         # Load pretrained model and tokenizer

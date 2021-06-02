@@ -1,9 +1,9 @@
 type: Pretrained_Crf
 name: Bert_Crf
 delimiter: "\t"
-input: "resources/data/dataset/ner/zh/cluener/bio"
+input: "resources/data/dataset/ner/zh/ccks/address/bio"
 file_format: bio
-output: "resources/data/output/ner/zh/cluener/bert_crf/cluener"
+output: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bio"
 max_length: 128
 pad_to_max_length: True
 model_path: resources/data/pretrained/bert_base_chinese
@@ -11,7 +11,7 @@ per_device_train_batch_size: 8
 per_device_eval_batch_size: 8
 learning_rate: 5.0e-5
 weight_decay: 0.0
-num_train_epochs: 3
+num_train_epochs: 5
 gradient_accumulation_steps: 1
 lr_scheduler_type: linear
 num_warmup_steps: 0

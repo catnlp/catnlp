@@ -1,0 +1,6 @@
+type: Pretrained_Crf
+name: Bert_Crf
+max_length: 128
+model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bio"
+do_lower_case: True
+device: cuda

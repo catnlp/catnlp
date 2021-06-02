@@ -168,7 +168,7 @@ class NerBertDataset(Dataset):
                         datas.append([word_list, tag_list])
                         word_list = list()
                         tag_list = list()
-        self.label_list = "[PAD]" + sorted(list(label_set))
+        self.label_list = ["[PAD]"] + sorted(list(label_set))
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
         self.contents = list()
         self.offset_lists = list()
@@ -343,6 +343,11 @@ class NerBertDataset(Dataset):
             label_ids = torch.tensor(label_ids, dtype=torch.long)
             features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids))
         return features
+    
+    def save_label(self, label_file):
+        with open(label_file, "w", encoding="utf-8") as lf:
+            for label in self.label_list:
+                lf.write(f"{label}\n")
 
     def __len__(self):
         return len(self._data)
