@@ -58,9 +58,3 @@ if __name__ == "__main__":
             count += 1
             if count % 100 == 0:
                 print(count)
-            if count <= 4:
-                print("---------------")
-                print(text)
-                print(entity_list)
-            elif count == 5:
-                break

@@ -89,7 +89,7 @@ class PlmPredict:
         preds = list()
         for text, pred in zip(texts, y_pred):
             pred_entities = list()
-            text_len = len(text) + 1
+            text_len = min(self.max_seq_length - 1, len(text) + 1)
             for i in range(1, text_len):
                 for j in range(i, text_len):
                     pred_scores = pred[i][j]
