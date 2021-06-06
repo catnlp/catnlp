@@ -24,22 +24,25 @@ import torch
 from transformers import (
     AutoConfig
 )
+import numpy as np
 
 from ..common.load_file import load_label_file
-from .model.albert_tiny import AlbertTinyCrf
-from .model.bert import BertCrf
+from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
+from .model.bert import BertBiaffine,BertCrf, BertSoftmax
 from .util.tokenizer import NerBertTokenizer
+from .util.split import merge_entities
 
 
 logger = logging.getLogger(__name__)
 
 
-class PretrainedCrfPredict:
+class PlmPredict:
     def __init__(self, config) -> None:
         self.max_seq_length = config.get("max_length")
         label_file = Path(config.get("model_path")) / "label.txt"
         self.label_list = load_label_file(label_file)
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        print(self.label_to_id)
         vocab_file = Path(config.get("model_path")) / "vocab.txt"
         self.tokenizer = NerBertTokenizer(vocab_file, do_lower_case=config.get("do_lower_case"))
         pretrained_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=len(self.label_list))
@@ -48,8 +51,16 @@ class PretrainedCrfPredict:
         model_name = config.get("name").lower()
         if model_name == "bert_crf":
             model_func = BertCrf
+        elif model_name == "bert_softmax":
+            model_func = BertSoftmax
+        elif model_name == "bert_biaffine":
+            model_func = BertBiaffine
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
+        elif model_name == "albert_tiny_softmax":
+            model_func = AlbertTinySoftmax
+        else:
+            raise ValueError
 
         self.model = model_func.from_pretrained(
             config.get("model_path"),
@@ -59,17 +70,60 @@ class PretrainedCrfPredict:
         self.device = config.get("device")
         self.model.to(torch.device(self.device))
         self.model.eval()
-
-    def get_labels(self, predictions):
+        self.decode_type = config.get("decode_type")
+    
+    def get_labels(self, texts, predictions):
         # Transform predictions and references tensos to numpy arrays
         if self.device == "cpu":
             y_pred = predictions.detach().clone().numpy()
         else:
             y_pred = predictions.detach().cpu().clone().numpy()
+        if self.decode_type == "general":
+            return self.get_general_labels(y_pred)
+        elif self.decode_type == "biaffine":
+            return self.get_biaffine_labels(texts, y_pred)
+        else:
+            raise ValueError
+    
+    def get_biaffine_labels(self, texts, y_pred):
+        preds = list()
+        for text, pred in zip(texts, y_pred):
+            pred_entities = list()
+            text_len = len(text) + 1
+            for i in range(1, text_len):
+                for j in range(i, text_len):
+                    pred_scores = pred[i][j]
+                    pred_label_id = np.argmax(pred_scores)
+                    if pred_label_id > 0:
+                        pred_entities.append([i-1, j, self.label_list[pred_label_id], pred_scores[pred_label_id]])
 
+            pred_entities = sorted(pred_entities, reverse=True, key=lambda x:x[3])
+            new_pred_entities = list()
+            for pred_entity in pred_entities:
+                start, end, tag, _ = pred_entity
+                flag = True
+                for new_pred_entity in new_pred_entities:
+                    new_start, new_end, _ = new_pred_entity
+                    if start < new_end and new_start < end:
+                        #for flat ner nested mentions are not allowed
+                        flag = False
+                        break
+                if flag:
+                    new_pred_entities.append([start, end, tag])
+
+            tmp_preds = ["O"] * text_len
+            for entity in new_pred_entities:
+                start, end, tag = entity
+                tmp_preds[start] = f"B-{tag}"
+                for i in range(start+1, end):
+                    tmp_preds[i] = f"I-{tag}"
+            preds.append(tmp_preds)
+        return preds
+
+    def get_general_labels(self, y_pred):
         # Remove ignored index (special tokens)
         preds = [
-            [self.label_list[p] for p in pred if p > 0]
+            [self.label_list[p] for p in pred[1:] if p > 0]
             for pred in y_pred
         ]
         return preds
@@ -87,8 +141,7 @@ class PretrainedCrfPredict:
 
     def postprocess(self, texts, outputs):
         entity_lists = list()
-        predictions = torch.tensor(outputs)
-        pred_lists = self.get_labels(predictions)
+        pred_lists = self.get_labels(texts, outputs)
         for text, pred_list in zip(texts, pred_lists):
             entity_list = self.get_entity_list(text, pred_list)
             entity_lists.append(entity_list)
@@ -100,7 +153,7 @@ class PretrainedCrfPredict:
         for idx, (_, tag) in enumerate(zip(text, tag_list)):
             if tag[0] != "O":
                 tag_name = tag[2:]
-                if tag[0] == "B":
+                if tag[0] in ["B", "S"]:
                     entity_list.append([idx, idx+1, tag_name])
                 elif pre_label == tag_name:
                     entity_list[-1][1] += 1

@@ -16,10 +16,10 @@ class NerFormat:
             self._json2bio(source, target, is_clean)
         elif format == "bio2json":
             self._bio2json(source, target, is_clean)
-        elif format == "json2bioes":
-            self._json2bioes(source, target, is_clean)
-        elif format == "bioes2json":
-            self._bioes2json(source, target, is_clean)
+        elif format == "json2bies":
+            self._json2bies(source, target, is_clean)
+        elif format == "bies2json":
+            self._bies2json(source, target, is_clean)
         elif format == "json2clue":
             self._json2clue(source, target, is_clean)
         elif format == "clue2json":
@@ -113,12 +113,12 @@ class NerFormat:
                     idx = 0
 
 
-    def _json2bioes(self, source, target, is_clean=False):
+    def _json2bies(self, source, target, is_clean=False):
         """
-        json格式转bioes格式
+        json格式转bies格式
         Args:
             source(str): json格式的文件路径
-            target(str): bioes格式的文件路径
+            target(str): bies格式的文件路径
         Returns:
             None
         """
@@ -148,11 +148,11 @@ class NerFormat:
                 tf.write("\n")
 
 
-    def _bioes2json(self, source, target, is_clean=False):
+    def _bies2json(self, source, target, is_clean=False):
         """
-        bioes格式转json格式
+        bies格式转json格式
         Args:
-            source(str): bioes格式的文件路径
+            source(str): bies格式的文件路径
             target(str): json格式的文件路径
         Returns:
             None
@@ -368,6 +368,85 @@ class JsonFormat:
             for label in labels:
                 _, _, tag = label
                 label_dict[tag] += 1
+        return label_dict
+
+    def size(self):
+        return len(self._data)
+    
+    def statistics(self):
+        len_list = self.get_text_len()
+        len_array = np.array(sorted(len_list))
+        length = len_array.size
+        len_mean = np.mean(len_array)
+        len_std = np.std(len_array)
+        len_min = len_array[0]
+        len_50 = len_array[int(length * 0.5)]
+        len_70 = len_array[int(length * 0.7)]
+        len_90 = len_array[int(length * 0.9)]
+        len_max = len_array[-1]
+        print(f"count:\t{length}")
+        print(f"mean:\t{round(len_mean, 2)}")
+        print(f"std:\t{round(len_std, 2)}")
+        print(f"min:\t{len_min}")
+        print(f"50%:\t{round(len_50, 2)}")
+        print(f"70%:\t{round(len_70, 2)}")
+        print(f"90%:\t{round(len_90, 2)}")
+        print(f"max:\t{len_max}")
+    
+    def draw_histogram(self, num_bins=100, density=False):
+        len_list = self.get_text_len()
+        len_list = np.array(len_list)
+        visual.draw_histogram(len_list, num_bins=num_bins, density=density)
+
+    def draw_hbar(self):
+        label_dict = self.get_label_dict()
+        label_list = label_dict.items()
+        label_list = sorted(label_list, key=lambda i: i[1], reverse=True)
+        labels = [i[0] for i in label_list]
+        datas = [i[1] for i in label_list]
+        visual.draw_hbar(labels, datas)
+
+
+class ConllFormat:
+    def __init__(self, data_file, delimiter) -> None:
+        self._data = self.load(data_file, delimiter)
+
+    def load(self, data_file, delimiter):
+        datas = list()
+        words = list()
+        labels = list()
+        with open(data_file, "r", encoding="utf-8") as df:
+            for line in df:
+                line = line.rstrip()
+                if not line:
+                    if words:
+                        datas.append(("".join(words), labels))
+                        words = list()
+                        labels = list()
+                else:
+                    word, label = line.split(delimiter)
+                    words.append(word)
+                    labels.append(label)
+        return datas
+
+    def get_text(self):
+        text_list = list()
+        for data in self._data:
+            text = data[0]
+            if text:
+                text_list.append(text)
+        return text_list
+
+    def get_text_len(self):
+        text_list = self.get_text()
+        return [len(text) for text in text_list]
+    
+    def get_label_dict(self):
+        label_dict = defaultdict(int)
+        for data in self._data:
+            labels = data[1]
+            for label in labels:
+                label_dict[label] += 1
         return label_dict
 
     def size(self):

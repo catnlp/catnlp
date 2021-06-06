@@ -13,11 +13,11 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--input_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/bio/test.txt", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/json/test.txt", help="测试文件")
     parser.add_argument("--output_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/bio/试一下_addr_parsing_runid.txt", help="结果文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/json/试一下_addr_parsing_runid.txt", help="结果文件")
     parser.add_argument("--predict_config", type=str,
-                        default="resources/config/ner/predict/bert.yaml", help="预测配置")
+                        default="resources/config/ner/predict/bert_biaffine.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()
@@ -47,7 +47,8 @@ if __name__ == "__main__":
             for entity in entity_list:
                 start, end, tag = entity
                 if end - start == 1:
-                    tag_list[start] = f"S-{tag}"
+                    if tag in ["assist", "intersection"]:
+                        tag_list[start] = f"S-{tag}"
                 else:
                     tag_list[start] = f"B-{tag}"
                     for i in range(start+1, end-1):
@@ -57,3 +58,9 @@ if __name__ == "__main__":
             count += 1
             if count % 100 == 0:
                 print(count)
+            if count <= 4:
+                print("---------------")
+                print(text)
+                print(entity_list)
+            elif count == 5:
+                break

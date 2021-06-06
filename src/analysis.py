@@ -2,11 +2,14 @@
 
 import matplotlib.pyplot as plt
 
-from catnlp.ner.format import JsonFormat
+from catnlp.ner.format import JsonFormat, ConllFormat
 
 
-def analysis_ner(source):
-    ner_data = JsonFormat(source)
+def analysis_ner(source, file_format, delimiter):
+    if file_format == "conll":
+        ner_data = ConllFormat(source, delimiter)
+    else:
+        ner_data = JsonFormat(source)
     ner_data.statistics()
     ner_data.draw_histogram(num_bins=100, density=False)
     ner_data.draw_hbar()
@@ -14,5 +17,7 @@ def analysis_ner(source):
 
 
 if __name__ == "__main__":
-    source_file = "resources/data/dataset/ner/zh/cluener/json/train.json"
-    analysis_ner(source_file)
+    delimiter = "\t"
+    file_format = "conll"
+    source_file = "resources/data/dataset/ner/zh/ccks/address/bies/train.txt"
+    analysis_ner(source_file, file_format, delimiter)

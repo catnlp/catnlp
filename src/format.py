@@ -10,24 +10,24 @@ from catnlp.ner.format import NerFormat
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="转换模型格式")
     parser.add_argument(
-        "--input_dir", default="resources/data/dataset/ner/zh/cluener/json", type=str, help="输入文件夹"
+        "--input_dir", default="resources/data/dataset/ner/zh/ccks/address/bies", type=str, help="输入文件夹"
     )
     parser.add_argument(
-        "--input_type", default="json", type=str, help="输入文件类型"
+        "--input_type", default="txt", type=str, help="输入文件类型"
     )
     parser.add_argument(
-        "--output_dir", default="resources/data/dataset/ner/zh/cluener/split", type=str, help="输出文件夹"
+        "--output_dir", default="resources/data/dataset/ner/zh/ccks/address/json", type=str, help="输出文件夹"
     )
     parser.add_argument(
         "--output_type", default="json", type=str, help="输出文件类型"
     )
     parser.add_argument(
-        "--convert", default="json2split", type=str,
-        choices=["json2bio", "bio2json", "json2bioes", "bioes2json", "json2clue", "clue2json", "json2split", "split2json"], 
+        "--convert", default="bies2json", type=str,
+        choices=["json2bio", "bio2json", "json2bies", "bies2json", "json2clue", "clue2json", "json2split", "split2json"], 
         help="转化类型"
     )
     args = parser.parse_args()
-    # NER Format: json2bio,bio2json,json2bioes,bioes2json,json2clue,clue2json,json2split,split2json
+    # NER Format: json2bio,bio2json,json2bies,bies2json,json2clue,clue2json,json2split,split2json
     ner_format = NerFormat()
     input_path = Path(args.input_dir)
     output_path = Path(args.output_dir)

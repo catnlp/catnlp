@@ -1,32 +1,15 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2021 The HuggingFace Inc. team. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""
-Fine-tuning a 🤗 Transformers model on token classification tasks (NER, POS, CHUNKS) relying on the accelerate library
-without using a Trainer.
-"""
 import logging
 import math
 import os
 from pathlib import Path
+from re import VERBOSE
 
 import torch
 from tqdm.auto import tqdm
 import transformers
 from accelerate import Accelerator
-from datasets import load_metric
 from transformers import (
     AdamW,
     AutoConfig,
@@ -34,17 +17,19 @@ from transformers import (
     set_seed,
 )
 
-from .model.albert_tiny import AlbertTinySoftmax
-from .model.bert import BertSoftmax
+from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
+from .model.bert import BertBiaffine, BertCrf, BertSoftmax
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.tokenizer import NerBertTokenizer
+from .util.score import get_f1
+from .util.decode import get_labels
 
 
 logger = logging.getLogger(__name__)
 
 
-class PretrainedSoftmaxTrain:
+class PlmTrain:
     def __init__(self, config) -> None:
         if config.get("output") is not None:
             os.makedirs(config.get("output"), exist_ok=True)
@@ -82,7 +67,7 @@ class PretrainedSoftmaxTrain:
         # download the dataset.
         file_format = config.get("file_format")
         input_dir = Path(config.get("input"))
-        if file_format == "bio":
+        if file_format in ["bio", "bies"]:
             train_file = input_dir / "train.txt"
             dev_file = input_dir / "dev.txt"
         else:
@@ -114,39 +99,62 @@ class PretrainedSoftmaxTrain:
 
         model_func = None
         model_name = config.get("name").lower()
-        if model_name == "bert_softmax":
+        if model_name == "bert_crf":
+            model_func = BertCrf
+        elif model_name == "bert_softmax":
             model_func = BertSoftmax
+        elif model_name == "bert_biaffine":
+            model_func = BertBiaffine
+        elif model_name == "albert_tiny_crf":
+            model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
             model_func = AlbertTinySoftmax
+        else:
+            raise ValueError
 
         model = model_func.from_pretrained(
             config.get("model_path"),
             config=pretrained_config,
+            label_size=len(label_list)
         )
 
         # model.resize_token_embeddings(len(tokenizer))
 
         # Preprocessing the raw_datasets.
         # First we tokenize all the texts.
-        padding = "max_length" if config.get("pad_to_max_length") else False
-
         train_dataloader = NerBertDataLoader(train_dataset, batch_size=config.get("per_device_train_batch_size"), shuffle=True, drop_last=True)
         dev_dataloader = NerBertDataLoader(dev_dataset, batch_size=config.get("per_device_dev_batch_size"), shuffle=False, drop_last=False)
 
         # Optimizer
         # Split weights in two groups, one with weight decay and the other not.
         no_decay = ["bias", "LayerNorm.weight"]
+        weight_decay = config.get("weight_decay")
+        model_type = config.get("model_type")
+        plm_lr = config.get("plm_lr")
+        not_plm_lr = config.get("not_plm_lr")
         optimizer_grouped_parameters = [
             {
-                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": config.get("weight_decay"),
+                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay) and model_type not in n],
+                "weight_decay": weight_decay,
+                "lr": not_plm_lr
             },
             {
-                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay) and model_type not in n],
                 "weight_decay": 0.0,
+                "lr": not_plm_lr
+            },
+                        {
+                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay) and model_type in n],
+                "weight_decay": weight_decay,
+                "lr": plm_lr
+            },
+            {
+                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay) and model_type in n],
+                "weight_decay": 0.0,
+                "lr": plm_lr
             },
         ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=config.get("learning_rate"))
+        optimizer = AdamW(optimizer_grouped_parameters, lr=plm_lr)
 
         # Use the device given by the `accelerator` object.
         device = accelerator.device
@@ -171,49 +179,6 @@ class PretrainedSoftmaxTrain:
             num_training_steps=config.get("max_train_steps"),
         )
 
-        # Metrics
-        metric = load_metric("seqeval")
-
-        def get_labels(predictions, references):
-            # Transform predictions and references tensos to numpy arrays
-            if device.type == "cpu":
-                y_pred = predictions.detach().clone().numpy()
-                y_true = references.detach().clone().numpy()
-            else:
-                y_pred = predictions.detach().cpu().clone().numpy()
-                y_true = references.detach().cpu().clone().numpy()
-
-            # Remove ignored index (special tokens)
-            true_predictions = [
-                [label_list[p] for (p, l) in zip(pred, gold_label) if l > 0]
-                for pred, gold_label in zip(y_pred, y_true)
-            ]
-            true_labels = [
-                [label_list[l] for (p, l) in zip(pred, gold_label) if l > 0]
-                for pred, gold_label in zip(y_pred, y_true)
-            ]
-            return true_predictions, true_labels
-
-        def compute_metrics():
-            results = metric.compute()
-            if config.get("return_entity_level_metrics"):
-                # Unpack nested dictionaries
-                final_results = {}
-                for key, value in results.items():
-                    if isinstance(value, dict):
-                        for n, v in value.items():
-                            final_results[f"{key}_{n}"] = v
-                    else:
-                        final_results[key] = value
-                return final_results
-            else:
-                return {
-                    "precision": results["overall_precision"],
-                    "recall": results["overall_recall"],
-                    "f1": results["overall_f1"],
-                    "accuracy": results["overall_accuracy"],
-                }
-
         # Train!
         total_batch_size = config.get("per_device_train_batch_size") * accelerator.num_processes * config.get("gradient_accumulation_steps")
 
@@ -231,7 +196,7 @@ class PretrainedSoftmaxTrain:
         for epoch in range(config.get("num_train_epochs")):
             model.train()
             for step, batch in enumerate(train_dataloader):
-                inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3]}
+                inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4]}
                 outputs = model(**inputs)
                 loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
@@ -247,21 +212,18 @@ class PretrainedSoftmaxTrain:
                     break
 
             model.eval()
+            device_type = device.type
+            decode_type = config.get("decode_type")
             pred_lists = list()
             gold_lists = list()
             for step, batch in enumerate(dev_dataloader):
                 with torch.no_grad():
-                    inputs = {"input_ids": batch[0], "attention_mask": batch[1]}
+                    inputs = {"input_ids": batch[0], "attention_mask": batch[1], "label_mask": batch[4]}
                     outputs = model(**inputs)
-                predictions = outputs.argmax(dim=-1)
                 labels = batch[3]
-                if not config.get("pad_to_max_length"):  # necessary to pad predictions and labels for being gathered
-                    predictions = accelerator.pad_across_processes(predictions, dim=1, pad_index=-100)
-                    labels = accelerator.pad_across_processes(labels, dim=1, pad_index=-100)
-
-                predictions_gathered = accelerator.gather(predictions)
+                predictions_gathered = accelerator.gather(outputs)
                 labels_gathered = accelerator.gather(labels)
-                preds, golds = get_labels(predictions_gathered, labels_gathered)
+                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, decode_type=decode_type, device=device_type)
                 pred_lists += preds
                 gold_lists += golds
             
@@ -278,15 +240,11 @@ class PretrainedSoftmaxTrain:
                     start_idx = end_idx
                 pred_lists = new_pred_lists
                 gold_lists = new_gold_lists
-
-            metric.add_batch(
-                predictions=pred_lists,
-                references=gold_lists,
-            )  # predictions and preferences are expected to be a nested list of labels, not label_ids
-
-            # eval_metric = metric.compute()
-            eval_metric = compute_metrics()
-            accelerator.print(f"epoch {epoch}:", eval_metric)
+            
+            accelerator.print(f"\nepoch: {epoch}")
+            eval_score = get_f1(gold_lists, pred_lists, format=file_format)
+            for tag in sorted(eval_score.keys()):
+                accelerator.print(tag, eval_score[tag])
 
         if config.get("output") is not None:
             accelerator.wait_for_everyone()

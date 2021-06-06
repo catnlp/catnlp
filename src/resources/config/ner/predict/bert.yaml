@@ -1,6 +1,7 @@
-type: Pretrained_Crf
+type: plm
 name: Bert_Crf
-max_length: 128
-model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bio"
+decode_type: general
+max_length: 50
+model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bies"
 do_lower_case: True
 device: cuda

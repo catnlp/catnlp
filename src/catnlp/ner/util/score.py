@@ -1,19 +1,33 @@
 # -*- coding: utf-8 -*-
+from collections import defaultdict
 
 from .merge import get_interval
 
     
 def get_f1(gold_lists, pred_lists, format):
-    gold_set = set()
-    pred_set = set()
+    if format != "bies":
+        format = "bio"
+    gold_type_dict = defaultdict(set)
+    pred_type_dict = defaultdict(set)
     for i, (gold_list, pred_list) in enumerate(zip(gold_lists, pred_lists)):
-        gold_entity_list = get_interval(gold_list, format)
+        gold_entity_list = get_interval(gold_list, format=format)
         for entity in gold_entity_list:
-            gold_set.add((i, entity["start"], entity["end"], entity["tag"]))
-        pred_entity_list = get_interval(pred_list, format)
+            start = entity["start"]
+            end = entity["end"]
+            tag = entity["tag"]
+            gold_type_dict["total"].add((i, start, end, tag))
+            gold_type_dict[tag].add((i, start, end, tag))
+        pred_entity_list = get_interval(pred_list, format=format)
         for entity in pred_entity_list:
-            pred_set.add((i, entity["start"], entity["end"], entity["tag"]))
-    return f1_score(gold_set, pred_set)
+            start = entity["start"]
+            end = entity["end"]
+            tag = entity["tag"]
+            pred_type_dict["total"].add((i, start, end, tag))
+            pred_type_dict[tag].add((i, start, end, tag))
+    result_dict = {}
+    for tag in gold_type_dict:
+        result_dict[tag] = f1_score(gold_type_dict[tag], pred_type_dict[tag])
+    return result_dict
 
 def f1_score(gold_set, pred_set):
     gold_num = len(gold_set)
@@ -32,4 +46,4 @@ def f1_score(gold_set, pred_set):
         f1 = 0
     else:
         f1 = float(2 * p * r) / (p + r)
-    return f1
+    return {"P": p, "R": r, "F1": f1}

@@ -8,6 +8,7 @@ from transformers import (
     AlbertPreTrainedModel
 )
 from torch.nn import CrossEntropyLoss
+from torch.nn.utils.rnn import pad_sequence
 from ...layer.decoder.crf import CRF
 
 
@@ -54,19 +55,8 @@ class AlbertTinySoftmax(AlbertPreTrainedModel):
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
 
-        loss = None
         if labels is not None:
-            # Only keep active parts of the loss
-            if attention_mask is not None:
-                active_loss = attention_mask.view(-1) == 1
-                active_logits = logits.view(-1, self.num_labels)
-                active_labels = torch.where(
-                    active_loss, labels.view(-1), torch.tensor(self.loss_func.ignore_index).type_as(labels)
-                )
-                loss = self.loss_func(active_logits, active_labels)
-            else:
-                loss = self.loss_func(logits.view(-1, self.num_labels), labels.view(-1))
-            output = loss
+            output = self.loss_func(logits.view(-1, self.num_labels), labels.view(-1))
         else:
             output = logits
 
@@ -118,5 +108,6 @@ class AlbertTinyCrf(AlbertPreTrainedModel):
             output = -self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
         else:
             output = self.crf.decode(emissions=logits, mask=attention_mask.byte())
+            output = pad_sequence([torch.tensor(o) for o in output], batch_first=True)
 
         return output

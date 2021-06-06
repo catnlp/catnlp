@@ -34,10 +34,10 @@ def recover_tag_list(scheduling_list, size, format):
     """
     if format == "bio":
         tag_list = recover_tag_list_bio(scheduling_list, size)
-    elif format == "bioes":
-        tag_list = recover_tag_list_bioes(scheduling_list, size)
+    elif format == "bies":
+        tag_list = recover_tag_list_bies(scheduling_list, size)
     else:
-        raise ValueError("select in (bio|bioes)")
+        raise ValueError("select in (bio|bies)")
     return tag_list
 
 
@@ -62,7 +62,7 @@ def recover_tag_list_bio(scheduling_list, size):
     return tag_list
 
 
-def recover_tag_list_bioes(scheduling_list, size):
+def recover_tag_list_bies(scheduling_list, size):
     """
     从实体列表中恢复bioes标签列表
     Args:
@@ -289,8 +289,8 @@ def find_no_overlap1(interval_list, start, size):
 def get_interval(tag_list, weight=1, format="bio"):
     if format == "bio":
         entity_list = get_interval_bio(tag_list, weight)
-    elif format == "bioes":
-        entity_list = get_interval_bioes(tag_list, weight)
+    elif format == "bies":
+        entity_list = get_interval_bies(tag_list, weight)
     else:
         raise ValueError(f"错误格式：{format}")
     return entity_list
@@ -332,7 +332,7 @@ def get_interval_bio(tag_list, weight):
     return entities
 
 
-def get_interval_bioes(tag_list, weight):
+def get_interval_bies(tag_list, weight):
     entities = []
     pre_o = True
     for idx, tag in enumerate(tag_list):
@@ -360,6 +360,7 @@ def get_interval_bioes(tag_list, weight):
                     entities[-1]["end"] += 1
                     entities[-1]["len"] += 1
             else:
+                print(prefix)
                 print(f"error tag: {tag}")
                 exit(1)
             pre_o = False
@@ -368,18 +369,18 @@ def get_interval_bioes(tag_list, weight):
     return entities
 
 
-def get_interval(tag_list, weight=None, format="bio"):
-    """
-    标签列表转实体区间列表
-    :param tag_list:
-    :return:
-    """
-    if format == "bio":
-        return get_interval_bio(tag_list, weight)
-    elif format == "bioes":
-        return get_interval_bioes(tag_list, weight)
-    else:
-        raise ValueError("select in {bio|bioes}")
+# def get_interval(tag_list, weight=None, format="bio"):
+#     """
+#     标签列表转实体区间列表
+#     :param tag_list:
+#     :return:
+#     """
+#     if format == "bio":
+#         return get_interval_bio(tag_list, weight)
+#     elif format == "bioes":
+#         return get_interval_bioes(tag_list, weight)
+#     else:
+#         raise ValueError("select in {bio|bioes}")
 
 
 if __name__ == "__main__":
