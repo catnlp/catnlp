@@ -10,6 +10,21 @@ from catnlp.common.load_file import load_config_file
 from catnlp.ner.predict import NerPredict
 
 
+def merge_entities(entity_list):
+    sorted_entity_list = sorted(entity_list, key=lambda i: i[1]-i[0], reverse=True)
+    new_entity_list = list()
+    is_appear_list = [False] * len(entity_list)
+    for idx, entity in enumerate(sorted_entity_list):
+        if is_appear_list[idx]:
+            continue
+        new_entity_list.append(entity)
+        for idy, tmp_entity in enumerate(sorted_entity_list[idx:]):
+            if entity[0] < tmp_entity[1] and \
+                    tmp_entity[0] < entity[1]:
+                is_appear_list[idx+idy] = True
+    return new_entity_list
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="训练模型")
     parser.add_argument("--task", type=str,
@@ -33,29 +48,33 @@ if __name__ == "__main__":
 
     task = args.task.lower()
     if task == "ner":
-        ner_service = NerPredict(predict_config)
+        ner_services = list()
+        for type in predict_config:
+            ner_services.append(NerPredict(predict_config[type], type=type))
+        print(ner_services)
+        with open(args.input_file, "r", encoding="utf-8") as sf, \
+                open(args.output_file, "w", encoding="utf-8") as tf:
+            lines = sf.readlines()
+            for line in tqdm(lines):
+                line = line.rstrip()
+                if not line:
+                    continue
+                idx, text = line.split("\u0001")
+                entity_list = list()
+                for ner_service in ner_services:
+                    entity_list += ner_service.predict(text)
+                entity_list = merge_entities(entity_list)
+                tag_list = ["O"] * len(text)
+                for entity in entity_list:
+                    start, end, tag = entity
+                    if end - start == 1:
+                        if tag in ["assist", "intersection"]:
+                            tag_list[start] = f"S-{tag}"
+                    else:
+                        tag_list[start] = f"B-{tag}"
+                        for i in range(start+1, end-1):
+                            tag_list[i] = f"I-{tag}"
+                        tag_list[end-1] = f"E-{tag}"
+                tf.write(f"{idx}\u0001{text}\u0001{' '.join(tag_list)}\n")
     else:
         raise RuntimeError(f"{args.task}未开发")
-    count = 0
-    with open(args.input_file, "r", encoding="utf-8") as sf, \
-            open(args.output_file, "w", encoding="utf-8") as tf:
-        lines = sf.readlines()
-        for line in tqdm(lines):
-            line = line.rstrip()
-            if not line:
-                continue
-            idx, text = line.split("\u0001")
-            entity_list = ner_service.predict(text)
-            tag_list = ["O"] * len(text)
-            for entity in entity_list:
-                start, end, tag = entity
-                if end - start == 1:
-                    if tag in ["assist", "intersection"]:
-                        tag_list[start] = f"S-{tag}"
-                else:
-                    tag_list[start] = f"B-{tag}"
-                    for i in range(start+1, end-1):
-                        tag_list[i] = f"I-{tag}"
-                    tag_list[end-1] = f"E-{tag}"
-            tf.write(f"{idx}\u0001{text}\u0001{' '.join(tag_list)}\n")
-            count += 1

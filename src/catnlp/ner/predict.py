@@ -2,16 +2,21 @@
 
 import logging
 
-from .predict_plm import PlmPredict
+from .predict_plm import PredictPlm
+from .predict_dict import PredictDict
+from .predict_re import PredictRe
 # from .train_lstm import LstmTrain
 
 
 class NerPredict:
-    def __init__(self, config):
+    def __init__(self, config, type):
         logging.info(config)
-        model_type = config.get("type", "").lower()
-        if model_type == "plm":
-            self.ner_service = PlmPredict(config)
+        if type == "plm":
+            self.ner_service = PredictPlm(config)
+        elif type == "dict":
+            self.ner_service = PredictDict(config)
+        elif type == "re":
+            self.ner_service = PredictRe(config)
         # else:
         #     ner_train = LstmTrain(config)
         #     ner_train.train()

@@ -36,7 +36,7 @@ from .util.split import merge_entities
 logger = logging.getLogger(__name__)
 
 
-class PlmPredict:
+class PredictPlm:
     def __init__(self, config) -> None:
         self.max_seq_length = config.get("max_length")
         label_file = Path(config.get("model_path")) / "label.txt"
