@@ -1,9 +1,9 @@
 type: plm
 name: bert_crf
 delimiter: "\t"
-input: "resources/data/dataset/ner/zh/ccks/address/bies"
-file_format: bies
-output: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bies"
+input: "resources/data/dataset/ner/zh/ccks/address/json/many"
+file_format: json
+output: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/json/many"
 max_length: 50
 model_path: resources/data/pretrained/bert_base_chinese
 per_device_train_batch_size: 16

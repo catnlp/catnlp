@@ -54,3 +54,6 @@ python train.py --task=NER --train_config=data/config/ner/bert.yaml --log_config
 ```
 python train.py --task=NER --train_config=data/config/ner/albert_tiny.yaml --log_config=data/config/ner/logging.yaml
 ```
+
+### 实验
+

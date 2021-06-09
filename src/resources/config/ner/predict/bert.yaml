@@ -2,6 +2,6 @@ type: plm
 name: Bert_Crf
 decode_type: general
 max_length: 50
-model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bies"
+model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/json/many"
 do_lower_case: True
 device: cuda

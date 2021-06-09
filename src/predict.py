@@ -4,6 +4,8 @@ import argparse
 import logging
 import logging.config
 
+from tqdm import tqdm
+
 from catnlp.common.load_file import load_config_file
 from catnlp.ner.predict import NerPredict
 
@@ -13,11 +15,11 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--input_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/json/test.txt", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/json/many/test.txt", help="测试文件")
     parser.add_argument("--output_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/json/试一下_addr_parsing_runid.txt", help="结果文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/json/many/试一下_addr_parsing_runid.txt", help="结果文件")
     parser.add_argument("--predict_config", type=str,
-                        default="resources/config/ner/predict/bert_biaffine.yaml", help="预测配置")
+                        default="resources/config/ner/predict/bert.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()
@@ -37,7 +39,8 @@ if __name__ == "__main__":
     count = 0
     with open(args.input_file, "r", encoding="utf-8") as sf, \
             open(args.output_file, "w", encoding="utf-8") as tf:
-        for line in sf:
+        lines = sf.readlines()
+        for line in tqdm(lines):
             line = line.rstrip()
             if not line:
                 continue
@@ -56,5 +59,3 @@ if __name__ == "__main__":
                     tag_list[end-1] = f"E-{tag}"
             tf.write(f"{idx}\u0001{text}\u0001{' '.join(tag_list)}\n")
             count += 1
-            if count % 100 == 0:
-                print(count)

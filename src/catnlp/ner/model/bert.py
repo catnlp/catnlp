@@ -164,7 +164,7 @@ class BertBiaffine(BertPreTrainedModel):
         start_logits = self.start_layer(sequence_output) 
         end_logits = self.end_layer(sequence_output) 
 
-        span_logits = self.biaffne_layer(start_logits,end_logits)
+        span_logits = self.biaffne_layer(start_logits, end_logits)
         span_logits = span_logits.contiguous()
 
         if labels is not None:

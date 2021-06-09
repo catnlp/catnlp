@@ -28,6 +28,8 @@ class NerFormat:
             self._json2split(source, target, is_clean)
         elif format == "split2json":
             self._split2json(source, target, is_clean)
+        elif format == "json2many":
+            self._json2many(source, target, is_clean)
         else:
             raise RuntimeError(f"无效格式：{format}")
         print(f"{format}格式转换成功")
@@ -333,6 +335,37 @@ class NerFormat:
                     'label_lists': entity_lists,
                     'offsets': offset_list
                 }, ensure_ascii=False) + '\n')
+    
+    def _json2many(self, source, target, is_clean=False):
+        """
+        json格式转many格式
+        Args:
+            source(str): json格式的文件路径
+            target(str): many格式的文件路径
+        Returns:
+            None
+        """
+        with open(source, 'r', encoding='utf-8') as sf, \
+                open(target, 'w', encoding='utf-8') as tf:
+            for line in sf:
+                line = json.loads(line)
+                if not line:
+                    continue
+                text = line['text']
+                if is_clean:
+                    text = clean_text(text)
+                entities = line['labels']
+
+                for entity in entities:
+                    start, end, tag = entity
+                    tmp_text = text[start: end]
+                    tmp_end = end - start
+                    tf.write(json.dumps({
+                        "text": tmp_text,
+                        "labels": [[0, tmp_end, tag]]
+                    }, ensure_ascii=False) + "\n")
+                
+                tf.write(json.dumps(line, ensure_ascii=False) + "\n")          
 
 
 class JsonFormat:
