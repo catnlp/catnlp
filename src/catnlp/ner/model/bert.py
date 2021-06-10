@@ -110,7 +110,7 @@ class BertCrf(BertPreTrainedModel):
             output = -self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
         else:
             output = self.crf.decode(emissions=logits, mask=attention_mask.byte())
-            output = pad_sequence([torch.tensor(o) for o in output], batch_first=True)
+            output = pad_sequence([torch.tensor(o) for o in output], batch_first=True, padding_value=0)
 
         return output
 
