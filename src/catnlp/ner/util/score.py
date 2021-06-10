@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from collections import defaultdict
 
+from prettytable import PrettyTable
+
 from .merge import get_interval
 
     
@@ -27,7 +29,21 @@ def get_f1(gold_lists, pred_lists, format):
     result_dict = {}
     for tag in gold_type_dict:
         result_dict[tag] = f1_score(gold_type_dict[tag], pred_type_dict[tag])
-    return result_dict
+    table = pretty_print(result_dict)
+    return result_dict["total"]["F1"], table
+
+
+def pretty_print(result_dict):
+    table = PrettyTable()
+    table.field_names = ["Label", "P", "R", "F1", "Equal"]
+    for tag in sorted(result_dict.keys()):
+        if tag != "total":
+            score = result_dict[tag]
+            table.add_row([tag, score["P"], score["R"], score["F1"], score["Equal"]])
+    score = result_dict["total"]
+    table.add_row(["total", score["P"], score["R"], score["F1"], score["Equal"]])
+    return table
+
 
 def f1_score(gold_set, pred_set):
     gold_num = len(gold_set)
@@ -46,4 +62,4 @@ def f1_score(gold_set, pred_set):
         f1 = 0
     else:
         f1 = float(2 * p * r) / (p + r)
-    return {"P": p, "R": r, "F1": f1}
+    return {"P": p, "R": r, "F1": f1, "Equal": equal_num}

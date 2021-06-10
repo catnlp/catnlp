@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import re
 import copy
 import json
 import logging
@@ -123,7 +123,7 @@ class NerBertDataset(Dataset):
     """
     数据集类
     """
-    def __init__(self, data_file, tokenizer, max_seq_length, file_format="bio", delimiter="\t"):
+    def __init__(self, data_file, tokenizer, max_seq_length, file_format="bio", delimiter="\t", do_lower=False):
         """
         初始化数据集类
         Args:
@@ -132,6 +132,7 @@ class NerBertDataset(Dataset):
             delimiter(str): 分隔符
         Returns: 无
         """
+        self._do_lower = do_lower
         datas = self._load_file(data_file, file_format, delimiter)
         self._data = self._to_features(datas, file_format=file_format, tokenizer=tokenizer, max_seq_length=max_seq_length)
     
@@ -284,6 +285,17 @@ class NerBertDataset(Dataset):
 
     def get_offset_lists(self):
         return self.offset_lists
+    
+    def tokenize(self, text):
+        _tokens = []
+        for c in text:
+            if self._do_lower:
+                c = c.lower()
+            if re.match(r"\s", c):
+                _tokens.append("[unused1]")
+            else:
+                _tokens.append(c)
+        return _tokens
 
     def _to_features(self, datas, file_format="general", tokenizer=None, max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=0,
@@ -297,7 +309,7 @@ class NerBertDataset(Dataset):
         """
         features = list()
         for (ex_index, data) in enumerate(datas):
-            tokens = tokenizer.tokenize(data[0])
+            tokens = self.tokenize(data[0])
             if file_format != "biaffine":
                 label_ids = [self.label_to_id[x] for x in data[1]]
             # Account for [CLS] and [SEP] with "- 2".
@@ -383,9 +395,12 @@ class NerBertDataset(Dataset):
                 print("input_mask: ", input_mask)
                 print("segment_ids: ", segment_ids)
                 print("label_mask: ", label_mask)
-                print("label_ids: ")
-                for i in range(len(label_ids)):
-                    print(label_ids[i])
+                if file_format == "biaffine":
+                    print("label_ids: ")
+                    for i in range(len(label_ids)):
+                        print(label_ids[i])
+                else:
+                    print("label_ids: ", label_ids)
             features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask))
         return features
 

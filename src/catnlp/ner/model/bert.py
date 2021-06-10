@@ -65,14 +65,14 @@ class BertSoftmax(BertPreTrainedModel):
 
 
 class BertCrf(BertPreTrainedModel):
-    def __init__(self, config, label_size):
+    def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 
         self.model = BertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
-        self.crf = CRF(num_tags=label_size, batch_first=True)
+        self.classifier = nn.Linear(config.hidden_size, self.num_labels)
+        self.crf = CRF(num_tags=self.num_labels, batch_first=True)
         self.init_weights()
 
     def forward(
@@ -105,18 +105,19 @@ class BertCrf(BertPreTrainedModel):
 
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
+        attention_mask = attention_mask.byte()
 
         if labels is not None:
-            output = -self.crf(emissions=logits, tags=labels, mask=attention_mask.byte())
+            output = -self.crf(emissions=logits, tags=labels, mask=attention_mask)
         else:
-            output = self.crf.decode(emissions=logits, mask=attention_mask.byte())
-            output = pad_sequence([torch.tensor(o) for o in output], batch_first=True)
+            output = self.crf.decode(emissions=logits, mask=attention_mask)
+            output = pad_sequence([torch.tensor(o) for o in output], batch_first=True, padding_value=0)
 
         return output
 
 
 class BertBiaffine(BertPreTrainedModel):
-    def __init__(self, config, label_size):
+    def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 

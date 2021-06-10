@@ -4,7 +4,6 @@ import logging
 import math
 import os
 from pathlib import Path
-from re import VERBOSE
 
 import torch
 from tqdm.auto import tqdm
@@ -13,6 +12,7 @@ from accelerate import Accelerator
 from transformers import (
     AdamW,
     AutoConfig,
+    AutoTokenizer,
     get_scheduler,
     set_seed,
 )
@@ -26,16 +26,14 @@ from .util.score import get_f1
 from .util.decode import get_labels
 
 
-logger = logging.getLogger(__name__)
-
-
 class PlmTrain:
     def __init__(self, config) -> None:
+        logger = logging.getLogger(__name__)
         if config.get("output") is not None:
             os.makedirs(config.get("output"), exist_ok=True)
 
         # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
-        accelerator = Accelerator()
+        accelerator = Accelerator(cpu=config["cpu"])
         # Make one log on every process with the configuration for debugging.
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -67,16 +65,15 @@ class PlmTrain:
         # download the dataset.
         file_format = config.get("file_format")
         input_dir = Path(config.get("input"))
-        if file_format in ["bio", "bies"]:
+        if file_format in ["bio", "bies", "conll"]:
             train_file = input_dir / "train.txt"
             dev_file = input_dir / "dev.txt"
         else:
             train_file = input_dir / "train.json"
             dev_file = input_dir / "dev.json"
-        vocab_file = Path(config.get("model_path")) / "vocab.txt"
-        tokenizer = NerBertTokenizer(vocab_file, do_lower_case=config.get("do_lower_case"))
-        train_dataset = NerBertDataset(train_file, tokenizer, config.get("max_length"), file_format=file_format)
-        dev_dataset = NerBertDataset(dev_file, tokenizer, config.get("max_length"), file_format=file_format)
+        tokenizer = AutoTokenizer.from_pretrained(config.get("model_path"), use_fast=True)
+        train_dataset = NerBertDataset(train_file, tokenizer, config.get("max_length"), file_format=file_format, do_lower=config.get("do_lower_case"))
+        dev_dataset = NerBertDataset(dev_file, tokenizer, config.get("max_length"), file_format=file_format, do_lower=config.get("do_lower_case"))
         if file_format == "split":
             dev_contents = dev_dataset.get_contents()
             dev_offset_lists = dev_dataset.get_offset_lists()
@@ -97,7 +94,6 @@ class PlmTrain:
         # download model & vocab.
         pretrained_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=num_labels)
 
-        model_func = None
         model_name = config.get("name").lower()
         if model_name == "bert_crf":
             model_func = BertCrf
@@ -114,15 +110,14 @@ class PlmTrain:
 
         model = model_func.from_pretrained(
             config.get("model_path"),
-            config=pretrained_config,
-            label_size=len(label_list)
+            config=pretrained_config
         )
 
         # model.resize_token_embeddings(len(tokenizer))
 
         # Preprocessing the raw_datasets.
         # First we tokenize all the texts.
-        train_dataloader = NerBertDataLoader(train_dataset, batch_size=config.get("per_device_train_batch_size"), shuffle=True, drop_last=True)
+        train_dataloader = NerBertDataLoader(train_dataset, batch_size=config.get("per_device_train_batch_size"), shuffle=True, drop_last=False)
         dev_dataloader = NerBertDataLoader(dev_dataset, batch_size=config.get("per_device_dev_batch_size"), shuffle=False, drop_last=False)
 
         # Optimizer
@@ -192,6 +187,7 @@ class PlmTrain:
         # Only show the progress bar once on each machine.
         progress_bar = tqdm(range(config.get("max_train_steps")), disable=not accelerator.is_local_main_process)
         completed_steps = 0
+        best_f1 = 0
 
         for epoch in range(config.get("num_train_epochs")):
             model.train()
@@ -242,11 +238,10 @@ class PlmTrain:
                 gold_lists = new_gold_lists
             
             accelerator.print(f"\nepoch: {epoch}")
-            eval_score = get_f1(gold_lists, pred_lists, format=file_format)
-            for tag in sorted(eval_score.keys()):
-                accelerator.print(tag, eval_score[tag])
-
-        if config.get("output") is not None:
-            accelerator.wait_for_everyone()
-            unwrapped_model = accelerator.unwrap_model(model)
-            unwrapped_model.save_pretrained(config.get("output"), save_function=accelerator.save)
+            f1, table = get_f1(gold_lists, pred_lists, format=file_format)
+            if f1 > best_f1:
+                best_f1 = f1
+                print(table)
+                accelerator.wait_for_everyone()
+                unwrapped_model = accelerator.unwrap_model(model)
+                unwrapped_model.save_pretrained(config.get("output"), save_function=accelerator.save)
