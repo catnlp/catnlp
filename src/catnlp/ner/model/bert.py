@@ -18,7 +18,7 @@ class BertSoftmax(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.model = BertModel(config, add_pooling_layer=False)
+        self.bert = BertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.loss_func = CrossEntropyLoss()
@@ -39,7 +39,7 @@ class BertSoftmax(BertPreTrainedModel):
         return_dict=None,
     ):
 
-        outputs = self.model(
+        outputs = self.bert(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -69,7 +69,7 @@ class BertCrf(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.model = BertModel(config, add_pooling_layer=False)
+        self.bert = BertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, self.num_labels)
         self.crf = CRF(num_tags=self.num_labels, batch_first=True)
@@ -89,7 +89,7 @@ class BertCrf(BertPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        outputs = self.model(
+        outputs = self.bert(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -121,7 +121,7 @@ class BertBiaffine(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.model = BertModel(config, add_pooling_layer=False)
+        self.bert = BertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         hidden_size = config.hidden_size
         self.start_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=128),
@@ -146,7 +146,7 @@ class BertBiaffine(BertPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        outputs = self.model(
+        outputs = self.bert(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,

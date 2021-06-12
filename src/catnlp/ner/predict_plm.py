@@ -64,8 +64,7 @@ class PredictPlm:
 
         self.model = model_func.from_pretrained(
             config.get("model_path"),
-            config=pretrained_config,
-            label_size=len(self.label_list)
+            config=pretrained_config
         )
         self.device = config.get("device")
         self.model.to(torch.device(self.device))
