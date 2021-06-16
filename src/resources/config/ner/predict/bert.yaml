@@ -1,14 +1,14 @@
-# dict:
-#   prov: "resources/data/dict/address/txt/prov.txt"
-#   city: "resources/data/dict/address/txt/city.txt"
-#   district: "resources/data/dict/address/txt/district.txt"
-#   town: "resources/data/dict/address/txt/town.txt"
-#   community: "resources/data/dict/address/txt/community.txt"
+dict:
+  prov: "resources/data/dict/address/clean/prov.txt"
+  city: "resources/data/dict/address/clean/city.txt"
+  district: "resources/data/dict/address/clean/district.txt"
+  town: "resources/data/dict/address/clean/town.txt"
+  community: "resources/data/dict/address/clean/community.txt"
 plm:
   name: bert_crf
   decode_type: general
-  max_length: 50
-  model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_crf/bio"
+  max_length: 60
+  model_path: "resources/data/output/ner/zh/ccks/address/bies/bert_crf/"
   do_lower_case: True
   device: cuda
  

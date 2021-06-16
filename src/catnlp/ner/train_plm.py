@@ -7,6 +7,7 @@ from pathlib import Path
 
 import torch
 from tqdm.auto import tqdm
+from torch.utils.tensorboard import SummaryWriter
 import transformers
 from accelerate import Accelerator
 from transformers import (
@@ -21,7 +22,6 @@ from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
 from .model.bert import BertBiaffine, BertCrf, BertSoftmax
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
-from .util.tokenizer import NerBertTokenizer
 from .util.score import get_f1
 from .util.decode import get_labels
 
@@ -186,17 +186,20 @@ class PlmTrain:
         logger.info(f"  Total optimization steps = {config.get('max_train_steps')}")
         # Only show the progress bar once on each machine.
         progress_bar = tqdm(range(config.get("max_train_steps")), disable=not accelerator.is_local_main_process)
+        writer = SummaryWriter(config.get("summary"))
         completed_steps = 0
         best_f1 = 0
 
         for epoch in range(config.get("num_train_epochs")):
             model.train()
+            train_loss = 0.0
             for step, batch in enumerate(train_dataloader):
                 inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4]}
                 outputs = model(**inputs)
                 loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
                 accelerator.backward(loss)
+                train_loss += loss.item()
                 if step % config.get("gradient_accumulation_steps") == 0 or step == len(train_dataloader) - 1:
                     optimizer.step()
                     lr_scheduler.step()
@@ -239,6 +242,16 @@ class PlmTrain:
             
             accelerator.print(f"\nepoch: {epoch}")
             f1, table = get_f1(gold_lists, pred_lists, format=file_format)
+            writer.add_scalars("f1",
+                            {
+                                "dev": round(100*f1, 2)
+                            },
+                            epoch + 1)
+            writer.add_scalars('loss',
+                            {
+                                "train": round(train_loss/100, 2)
+                            },
+                            epoch + 1)
             if f1 > best_f1:
                 best_f1 = f1
                 print(table)
