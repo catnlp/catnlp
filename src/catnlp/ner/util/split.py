@@ -47,7 +47,7 @@ def cut(text, tags=None, max_len=256, overlap_len=50):
         while j < sents_len:
             sent_j = sents[j]
             sent_j_len = len(sent_j)
-            if pre_list_len + sent_len + post_list_len < max_len:
+            if pre_list_len + sent_len + post_list_len + sent_j_len < max_len:
                 post_list.append(sent_j)
                 post_list_len += sent_j_len
             else:
