@@ -28,7 +28,7 @@ import numpy as np
 
 from ..common.load_file import load_label_file
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine,BertCrf, BertSoftmax
+from .model.bert import BertBiaffine, BertCrf, BertSoftmax, BertLstmCrf
 from .util.tokenizer import NerBertTokenizer
 from .util.split import merge_entities
 
@@ -53,6 +53,8 @@ class PredictPlm:
             model_func = BertCrf
         elif model_name == "bert_softmax":
             model_func = BertSoftmax
+        elif model_name == "bert_lstm_crf":
+            model_func = BertLstmCrf
         elif model_name == "bert_biaffine":
             model_func = BertBiaffine
         elif model_name == "albert_tiny_crf":
@@ -134,8 +136,8 @@ class PredictPlm:
         return entity_lists[0]
     
     def preprocess(self, text_list):
-        input_ids, input_masks = self._to_features(text_list, self.tokenizer, self.max_seq_length)
-        inputs = {"input_ids": input_ids, "attention_mask": input_masks}
+        input_ids, input_masks, input_len = self._to_features(text_list, self.tokenizer, self.max_seq_length)
+        inputs = {"input_ids": input_ids, "attention_mask": input_masks, "input_len": input_len}
         return inputs
 
     def postprocess(self, texts, outputs):
@@ -175,6 +177,7 @@ class PredictPlm:
         """
         input_id_lists = list()
         input_mask_lists = list()
+        input_len_list = list()
         for (ex_index, text) in enumerate(texts):
             tokens = tokenizer.tokenize(text)
             # Account for [CLS] and [SEP] with "- 2".
@@ -191,6 +194,7 @@ class PredictPlm:
                 tokens = [cls_token] + tokens
 
             input_ids = tokenizer.convert_tokens_to_ids(tokens)
+            input_len = len(input_ids)
             # The mask has 1 for real tokens and 0 for padding tokens. Only real
             # tokens are attended to.
             input_masks = [1 if mask_padding_with_zero else 0] * len(input_ids)
@@ -207,6 +211,8 @@ class PredictPlm:
             assert len(input_masks) == max_seq_length
             input_id_lists.append(input_ids)
             input_mask_lists.append(input_masks)
+            input_len_list.append(input_len)
         input_ids = torch.tensor(input_id_lists, dtype=torch.long).to(torch.device(self.device))
         input_masks = torch.tensor(input_mask_lists, dtype=torch.long).to(torch.device(self.device))
-        return input_ids, input_masks
+        input_len = torch.tensor(input_len_list, dtype=torch.long).to(torch.device(self.device))
+        return input_ids, input_masks, input_len

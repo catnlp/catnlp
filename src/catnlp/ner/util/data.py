@@ -116,7 +116,8 @@ class NerBertDataLoader(DataLoader):
         all_segment_ids = torch.tensor([f.segment_ids for f in features])
         all_label_ids = torch.tensor([f.label_ids for f in features])
         all_label_mask = torch.tensor([f.label_mask for f in features])
-        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_label_mask
+        all_input_len = torch.tensor([f.input_len for f in features])
+        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_label_mask, all_input_len
 
 
 class NerBertDataset(Dataset):
@@ -393,6 +394,7 @@ class NerBertDataset(Dataset):
                 print("tokens: ", tokens)
                 print("input_ids: ", input_ids)
                 print("input_mask: ", input_mask)
+                print("input_len: ", input_len)
                 print("segment_ids: ", segment_ids)
                 print("label_mask: ", label_mask)
                 if file_format == "biaffine":
@@ -401,7 +403,7 @@ class NerBertDataset(Dataset):
                         print(label_ids[i])
                 else:
                     print("label_ids: ", label_ids)
-            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask))
+            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask, input_len=input_len))
         return features
 
     def save_label(self, label_file):
@@ -417,12 +419,13 @@ class NerBertDataset(Dataset):
 
 class InputFeatures(object):
     """A single set of features of data."""
-    def __init__(self, input_ids, input_mask, segment_ids, label_ids, label_mask):
+    def __init__(self, input_ids, input_mask, segment_ids, label_ids, label_mask, input_len):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_ids = label_ids
         self.label_mask = label_mask
+        self.input_len = input_len
 
     def __repr__(self):
         return str(self.to_json_string())

@@ -30,9 +30,9 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--input_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/bio/test.txt", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/bio/train.txt", help="测试文件")
     parser.add_argument("--output_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/bio/试一下_addr_parsing_runid.txt", help="结果文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/bio/train_1.txt", help="结果文件")
     parser.add_argument("--predict_config", type=str,
                         default="resources/config/ner/predict/bert.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
@@ -54,26 +54,28 @@ if __name__ == "__main__":
         with open(args.input_file, "r", encoding="utf-8") as sf, \
                 open(args.output_file, "w", encoding="utf-8") as tf:
             lines = sf.readlines()
+            word_list = list()
             for line in tqdm(lines):
                 line = line.rstrip()
-                if not line:
-                    continue
-                idx, text = line.split("\u0001")
-                entity_list = list()
-                for ner_service in ner_services:
-                    entity_list += ner_service.predict(text)
-                entity_list = merge_entities(entity_list)
-                tag_list = ["O"] * len(text)
-                for entity in entity_list:
-                    start, end, tag = entity
-                    if end - start == 1:
-                        if tag in ["assist", "intersection"]:
-                            tag_list[start] = f"S-{tag}"
-                    else:
+                if not line and word_list:
+                    text = "".join(word_list)
+                    entity_list = list()
+                    for ner_service in ner_services:
+                        entity_list += ner_service.predict(text)
+                    entity_list = merge_entities(entity_list)
+                    tag_list = ["O"] * len(text)
+                    for entity in entity_list:
+                        start, end, tag = entity
                         tag_list[start] = f"B-{tag}"
-                        for i in range(start+1, end-1):
+                        for i in range(start+1, end):
                             tag_list[i] = f"I-{tag}"
-                        tag_list[end-1] = f"E-{tag}"
-                tf.write(f"{idx}\u0001{text}\u0001{' '.join(tag_list)}\n")
+                    for word, tag in zip(word_list, tag_list):
+                        tf.write(f"{word}\t{tag}\n")
+                    tf.write("\n")
+                    word_list = list()
+                else:
+                    word, _ = line.split("\t")
+                    word_list.append(word)
+
     else:
         raise RuntimeError(f"{args.task}未开发")

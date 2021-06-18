@@ -19,7 +19,7 @@ from transformers import (
 )
 
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertSoftmax
+from .model.bert import BertBiaffine, BertCrf, BertSoftmax, BertLstmCrf
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.score import get_f1
@@ -99,6 +99,8 @@ class PlmTrain:
             model_func = BertCrf
         elif model_name == "bert_softmax":
             model_func = BertSoftmax
+        elif model_name == "bert_lstm_crf":
+            model_func = BertLstmCrf
         elif model_name == "bert_biaffine":
             model_func = BertBiaffine
         elif model_name == "albert_tiny_crf":
@@ -194,7 +196,7 @@ class PlmTrain:
             model.train()
             train_loss = 0.0
             for step, batch in enumerate(train_dataloader):
-                inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4]}
+                inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
                 outputs = model(**inputs)
                 loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
@@ -217,7 +219,7 @@ class PlmTrain:
             gold_lists = list()
             for step, batch in enumerate(dev_dataloader):
                 with torch.no_grad():
-                    inputs = {"input_ids": batch[0], "attention_mask": batch[1], "label_mask": batch[4]}
+                    inputs = {"input_ids": batch[0], "attention_mask": batch[1], "label_mask": batch[4], "input_len": batch[5]}
                     outputs = model(**inputs)
                 labels = batch[3]
                 predictions_gathered = accelerator.gather(outputs)

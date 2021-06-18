@@ -5,10 +5,10 @@ dict:
   town: "resources/data/dict/address/clean/town.txt"
   community: "resources/data/dict/address/clean/community.txt"
 plm:
-  name: bert_crf
+  name: bert_lstm_crf
   decode_type: general
   max_length: 60
-  model_path: "resources/data/output/ner/zh/ccks/address/bies/bert_crf/"
+  model_path: "resources/data/output/ner/zh/ccks/address/bio/bert_lstm_crf/"
   do_lower_case: True
   device: cuda
  
