@@ -195,6 +195,7 @@ class PlmTrain:
         for epoch in range(config.get("num_train_epochs")):
             model.train()
             train_loss = 0.0
+            dev_loss = 0.0
             for step, batch in enumerate(train_dataloader):
                 inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
                 outputs = model(**inputs)
@@ -221,6 +222,9 @@ class PlmTrain:
                 with torch.no_grad():
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1], "label_mask": batch[4], "input_len": batch[5]}
                     outputs = model(**inputs)
+                    inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
+                    loss = model(**inputs)
+                    dev_loss += loss.item()
                 labels = batch[3]
                 predictions_gathered = accelerator.gather(outputs)
                 labels_gathered = accelerator.gather(labels)
@@ -249,9 +253,16 @@ class PlmTrain:
                                 "dev": round(100*f1, 2)
                             },
                             epoch + 1)
+            if file_format != "biaffine":
+                train_loss /= 100.0
+                dev_loss /= 10.0
+            else:
+                train_loss *= 10.0
+                dev_loss *= 10.0
             writer.add_scalars('loss',
                             {
-                                "train": round(train_loss/100, 2)
+                                "train": round(train_loss, 2),
+                                "dev": round(dev_loss, 2)
                             },
                             epoch + 1)
             if f1 > best_f1:

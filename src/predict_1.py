@@ -30,11 +30,11 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--input_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/bio/train.txt", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/0619/train_raw.txt", help="测试文件")
     parser.add_argument("--output_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/bio/train_1.txt", help="结果文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/0619/train_2.txt", help="结果文件")
     parser.add_argument("--predict_config", type=str,
-                        default="resources/config/ner/predict/bert.yaml", help="预测配置")
+                        default="resources/config/ner/predict/bert_biaffine.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()

@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--train_config", type=str,
-                        default="resources/config/ner/bert.yaml", help="训练配置")
+                        default="resources/config/ner/bert_biaffine.yaml", help="训练配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     try:
         train_config = load_config_file(args.train_config)
         log_config = load_config_file(args.log_config)
-        logging.config.dictConfig(log_config)
+        # logging.config.dictConfig(log_config)
     except Exception:
         raise RuntimeError("加载配置文件失败")
 

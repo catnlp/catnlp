@@ -106,14 +106,17 @@ class BertCrf(BertPreTrainedModel):
 
         sequence_output = outputs[0]
 
-        sequence_output = self.dropout(sequence_output)
+        # sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
         attention_mask = attention_mask.byte()
+        dim2 = torch.max(input_len)
 
         if labels is not None:
-            output = -self.crf(emissions=logits, tags=labels, mask=attention_mask)
+            # output = -self.crf(emissions=logits, tags=labels, mask=attention_mask)
+            output = -self.crf(emissions=logits[:, :dim2, :], tags=labels[:, :dim2], mask=attention_mask[:, :dim2])
         else:
-            output = self.crf.decode(emissions=logits, mask=attention_mask)
+            # output = self.crf.decode(emissions=logits, mask=attention_mask)
+            output = self.crf.decode(emissions=logits[:, :dim2, :], mask=attention_mask[:, :dim2])
             output = pad_sequence([torch.tensor(o) for o in output], batch_first=True, padding_value=0)
 
         return output
@@ -191,6 +194,10 @@ class BertBiaffine(BertPreTrainedModel):
         self.bert = BertModel(config, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         hidden_size = config.hidden_size
+        self.lstm = nn.LSTM(hidden_size, hidden_size// 2,
+                            batch_first=True,
+                            bidirectional=True,)
+                            # dropout=0.2)
         self.start_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=128),
                                             torch.nn.ReLU())
         self.end_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=128),
@@ -229,6 +236,8 @@ class BertBiaffine(BertPreTrainedModel):
         sequence_output = outputs[0]
 
         sequence_output = self.dropout(sequence_output)
+        
+        sequence_output, _ = self.lstm(sequence_output)
 
         start_logits = self.start_layer(sequence_output) 
         end_logits = self.end_layer(sequence_output) 

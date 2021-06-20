@@ -17,12 +17,14 @@
 Fine-tuning a 🤗 Transformers model on token classification tasks (NER, POS, CHUNKS) relying on the accelerate library
 without using a Trainer.
 """
+import re
 import logging
 from pathlib import Path
 
 import torch
 from transformers import (
-    AutoConfig
+    AutoConfig,
+    AutoTokenizer
 )
 import numpy as np
 
@@ -39,12 +41,12 @@ logger = logging.getLogger(__name__)
 class PredictPlm:
     def __init__(self, config) -> None:
         self.max_seq_length = config.get("max_length")
+        self.do_lower = config.get("do_lower_case")
         label_file = Path(config.get("model_path")) / "label.txt"
         self.label_list = load_label_file(label_file)
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
         print(self.label_to_id)
-        vocab_file = Path(config.get("model_path")) / "vocab.txt"
-        self.tokenizer = NerBertTokenizer(vocab_file, do_lower_case=config.get("do_lower_case"))
+        self.tokenizer = AutoTokenizer.from_pretrained(config.get("model_path"), use_fast=True)
         pretrained_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=len(self.label_list))
 
         model_func = None
@@ -165,6 +167,17 @@ class PredictPlm:
                 pre_label = "O"
         return entity_list
     
+    def tokenize(self, text):
+        _tokens = []
+        for c in text:
+            if self.do_lower:
+                c = c.lower()
+            if re.match(r"\s", c):
+                _tokens.append("[unused1]")
+            else:
+                _tokens.append(c)
+        return _tokens
+    
     def _to_features(self, texts, tokenizer=None, max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",
                      sep_token="[SEP]",pad_on_left=False,
@@ -179,7 +192,7 @@ class PredictPlm:
         input_mask_lists = list()
         input_len_list = list()
         for (ex_index, text) in enumerate(texts):
-            tokens = tokenizer.tokenize(text)
+            tokens = self.tokenize(text)
             # Account for [CLS] and [SEP] with "- 2".
             special_tokens_count = 2
             if len(tokens) > max_seq_length - special_tokens_count:

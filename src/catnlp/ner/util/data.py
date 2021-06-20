@@ -364,10 +364,11 @@ class NerBertDataset(Dataset):
                 label_ids += [pad_id] * padding_length
             
             if file_format == "biaffine":
-                label_mask = list()
-                for i in range(input_len):
-                    label_mask.append([0 for _ in range(i)] + [1 for _ in range(input_len - i)] + [0 for _ in range(max_seq_length - input_len)])
-                for i in range(input_len, max_seq_length):
+                # label_mask还要再看看
+                label_mask = [[0 for _ in range(max_seq_length)]]
+                for i in range(1, input_len-1):
+                    label_mask.append([0 for _ in range(i)] + [1 for _ in range(input_len-i-1)] + [0 for _ in range(max_seq_length-input_len+1)])
+                for i in range(input_len-1, max_seq_length):
                     label_mask.append([0 for _ in range(max_seq_length)])
                 assert len(label_mask) == len(label_mask[0])
                 
