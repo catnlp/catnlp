@@ -30,11 +30,11 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--input_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/0619/train_raw.txt", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/0619/dev.txt", help="测试文件")
     parser.add_argument("--output_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/0619/train_2.txt", help="结果文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/0619/dev_3.txt", help="结果文件")
     parser.add_argument("--predict_config", type=str,
-                        default="resources/config/ner/predict/bert_biaffine.yaml", help="预测配置")
+                        default="resources/config/ner/predict/bert.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()
@@ -55,6 +55,7 @@ if __name__ == "__main__":
                 open(args.output_file, "w", encoding="utf-8") as tf:
             lines = sf.readlines()
             word_list = list()
+            tag_list = list()
             for line in tqdm(lines):
                 line = line.rstrip()
                 if not line and word_list:
@@ -63,19 +64,26 @@ if __name__ == "__main__":
                     for ner_service in ner_services:
                         entity_list += ner_service.predict(text)
                     entity_list = merge_entities(entity_list)
-                    tag_list = ["O"] * len(text)
                     for entity in entity_list:
                         start, end, tag = entity
-                        tag_list[start] = f"B-{tag}"
-                        for i in range(start+1, end):
-                            tag_list[i] = f"I-{tag}"
+                        flag = True
+                        for i in range(start, end):
+                            if tag_list[i] != "O":
+                                flag = False
+                                break
+                        if flag:
+                            tag_list[start] = f"B-{tag}"
+                            for i in range(start+1, end):
+                                tag_list[i] = f"I-{tag}"
                     for word, tag in zip(word_list, tag_list):
                         tf.write(f"{word}\t{tag}\n")
                     tf.write("\n")
                     word_list = list()
+                    tag_list = list()
                 else:
-                    word, _ = line.split("\t")
+                    word, tag = line.split("\t")
                     word_list.append(word)
+                    tag_list.append(tag)
 
     else:
         raise RuntimeError(f"{args.task}未开发")

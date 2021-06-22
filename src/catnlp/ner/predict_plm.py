@@ -82,7 +82,7 @@ class PredictPlm:
         else:
             y_pred = predictions.detach().cpu().clone().numpy()
         if self.decode_type == "general":
-            return self.get_general_labels(y_pred)
+            return self.get_general_labels(texts, y_pred)
         elif self.decode_type == "biaffine":
             return self.get_biaffine_labels(texts, y_pred)
         else:
@@ -123,12 +123,22 @@ class PredictPlm:
             preds.append(tmp_preds)
         return preds
 
-    def get_general_labels(self, y_pred):
+    def get_general_labels(self, texts, y_pred):
         # Remove ignored index (special tokens)
-        preds = [
-            [self.label_list[p] for p in pred[1:] if p > 0]
-            for pred in y_pred
-        ]
+        # preds = [
+        #     [self.label_list[p] for p in pred[1:] if p > 0]
+        #     for pred in y_pred
+        # ]
+        preds = list()
+        for text, pred in zip(texts, y_pred):
+            tmp_preds = list()
+            for t, p in zip(text, pred[1:]):
+                if p > 0:
+                    tmp_preds.append(self.label_list[p])
+                else:
+                    print("O")
+                    tmp_preds.append("O")
+            preds.append(tmp_preds)
         return preds
     
     def predict(self, text):
