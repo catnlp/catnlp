@@ -249,7 +249,8 @@ class BertBiaffine(BertPreTrainedModel):
         self.num_labels = config.num_labels
 
         self.bert = BertModel(config, add_pooling_layer=False)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.2)
+        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
         hidden_size = config.hidden_size
         self.lstm = nn.LSTM(hidden_size, hidden_size// 2,
                             batch_first=True,
@@ -308,7 +309,7 @@ class BertBiaffine(BertPreTrainedModel):
             span_loss = self.loss_func(input=span_logits, target=labels)
             label_mask = label_mask.view(size=(-1,))
             span_loss *= label_mask
-            output = torch.sum(span_loss) / label_mask.size()[0]
+            output = torch.sum(span_loss) / sequence_output.size()[0]
         else:
             output = nn.functional.softmax(span_logits, dim=-1)
             # output = torch.argmax(output, dim=-1)

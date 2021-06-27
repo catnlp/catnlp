@@ -1,55 +1,58 @@
 import numpy as np
 
 
-def get_labels(predictions, references, label_list, decode_type="general", device="cpu"):
+def get_labels(predictions, references, label_list, input_len, decode_type="general", device="cpu"):
     if device == "cpu":
         y_pred = predictions.detach().clone().numpy()
         y_true = references.detach().clone().numpy()
+        input_len = input_len.detach().clone().numpy()
     else:
         y_pred = predictions.detach().cpu().clone().numpy()
         y_true = references.detach().cpu().clone().numpy()
+        input_len = input_len.detach().cpu().clone().numpy()
     if decode_type == "general":
-        return get_general_labels(y_pred, y_true, label_list)
+        return get_general_labels(y_pred, y_true, label_list, input_len)
     elif decode_type == "biaffine":
-        return get_biaffine_labels(y_pred, y_true, label_list)
+        return get_biaffine_labels(y_pred, y_true, label_list, input_len)
     else:
         raise ValueError
 
 
-def get_general_labels(y_pred, y_true, label_list):
+def get_general_labels(y_pred, y_true, label_list, input_len):
     preds = list()
     golds = list()
-    for pred, gold in zip(y_pred, y_true):
+    for pred, gold, max_len in zip(y_pred, y_true, input_len):
         tmp_preds = list()
         tmp_golds = list()
-        for p, g, in zip(pred, gold):
-            if g > 0:
+        for i in range(1, max_len):
+            p = pred[i]
+            g = gold[i]
+            if g == 0:
+                tmp_golds.append("O")
+            else:
                 tmp_golds.append(label_list[g])
-                if p == 0:
-                    tmp_preds.append("O")
-                else:
-                    tmp_preds.append(label_list[p])
+            if p == 0:
+                tmp_preds.append("O")
+            else:
+                tmp_preds.append(label_list[p])
         preds.append(tmp_preds)
         golds.append(tmp_golds)
     return preds, golds
 
 
-def get_biaffine_labels(y_pred, y_true, label_list):
+def get_biaffine_labels(y_pred, y_true, label_list, input_len):
     preds = list()
     golds = list()
-    for pred, gold in zip(y_pred, y_true):
+    for pred, gold, max_len in zip(y_pred, y_true, input_len):
         pred_entities = list()
         gold_entities = list()
-        max_len = 0
 
-        for i in range(1, len(gold)):
-            for j in range(i, len(gold)):
+        for i in range(1, max_len):
+            for j in range(i, max_len):
                 pred_scores = pred[i][j]
                 pred_label_id = np.argmax(pred_scores)
                 gold_label_id = gold[i][j]
                 if gold_label_id > 0:
-                    if j > max_len:
-                        max_len = j
                     gold_entities.append([i-1, j, label_list[gold_label_id]])
                     if pred_label_id > 0:
                         pred_entities.append([i-1, j, label_list[pred_label_id], pred_scores[pred_label_id]])

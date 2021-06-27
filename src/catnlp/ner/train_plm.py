@@ -124,7 +124,7 @@ class PlmTrain:
 
         # Optimizer
         # Split weights in two groups, one with weight decay and the other not.
-        no_decay = ["bias", "LayerNorm.weight"]
+        no_decay = ["bias", "LayerNorm.weight", "LayerNorm.bias"]
         weight_decay = config.get("weight_decay")
         model_type = config.get("model_type")
         plm_lr = config.get("plm_lr")
@@ -228,7 +228,7 @@ class PlmTrain:
                 labels = batch[3]
                 predictions_gathered = accelerator.gather(outputs)
                 labels_gathered = accelerator.gather(labels)
-                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, decode_type=decode_type, device=device_type)
+                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, input_len=batch[5], decode_type=decode_type, device=device_type)
                 pred_lists += preds
                 gold_lists += golds
             

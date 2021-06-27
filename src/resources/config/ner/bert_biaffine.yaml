@@ -1,16 +1,16 @@
 type: plm
 name: bert_biaffine
 delimiter: "\t"
-input: "resources/data/dataset/ner/zh/ccks/address/0619"
+input: "resources/data/dataset/ner/zh/ccks/address/0621"
 file_format: biaffine
-output: "resources/data/output/ner/zh/ccks/address/0619/bert_biaffine/"
-summary: "resources/data/output/ner/zh/ccks/address/0619/bert_biaffine/summary"
-max_length: 100
+output: "resources/data/output/ner/zh/ccks/address/0621/bert_biaffine/"
+summary: "resources/data/output/ner/zh/ccks/address/0621/bert_biaffine/summary"
+max_length: 60
 model_path: resources/data/pretrained/bert-base-chinese
 per_device_train_batch_size: 16
 per_device_eval_batch_size: 8
-plm_lr: 3.0e-5
-not_plm_lr: 5.0e-3
+plm_lr: 2.0228447859367986e-5
+not_plm_lr: 7.881173748974317e-5
 weight_decay: 0.0
 model_type: bert
 decode_type: biaffine
@@ -22,3 +22,5 @@ seed: 100
 do_lower_case: True
 task_name: ner
 cpu: False
+
+# seed:100, plm_lr:2.0228447859367986e-5, not_plm_lr:7.881173748974317e-5, epoch:15

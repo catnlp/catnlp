@@ -30,9 +30,9 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--input_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/0619/dev.txt", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/0621/dev_raw.txt", help="测试文件")
     parser.add_argument("--output_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/address/0619/dev_3.txt", help="结果文件")
+                        default="resources/data/dataset/ner/zh/ccks/address/0621/dev_1.txt", help="结果文件")
     parser.add_argument("--predict_config", type=str,
                         default="resources/config/ner/predict/bert.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
@@ -72,9 +72,16 @@ if __name__ == "__main__":
                                 flag = False
                                 break
                         if flag:
-                            tag_list[start] = f"B-{tag}"
-                            for i in range(start+1, end):
-                                tag_list[i] = f"I-{tag}"
+                            if end - start > 1:
+                                tag_list[start] = f"B-{tag}"
+                                for i in range(start+1, end-1):
+                                    tag_list[i] = f"I-{tag}"
+                                tag_list[end - 1] = f"E-{tag}"
+                            elif end == start + 1:
+                                tag_list[start] = f"S-{tag}"
+                            else:
+                                raise ValueError
+
                     for word, tag in zip(word_list, tag_list):
                         tf.write(f"{word}\t{tag}\n")
                     tf.write("\n")

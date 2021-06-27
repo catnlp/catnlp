@@ -144,6 +144,8 @@ class NerBertDataset(Dataset):
             return self._load_split_file(data_file)
         elif file_format == "biaffine":
             return self._load_biaffine_file(data_file)
+        elif file_format == "bies":
+            return self._load_bies_file(data_file, delimiter)
         else:
             return self._load_conll_file(data_file, delimiter)
 
@@ -168,6 +170,42 @@ class NerBertDataset(Dataset):
                     word_list.append(word)
                     tag_list.append(tag)
                     label_set.add(tag)
+                else:
+                    if word_list:
+                        datas.append([word_list, tag_list])
+                        word_list = list()
+                        tag_list = list()
+        self.label_list = ["[PAD]"] + sorted(list(label_set))
+        self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        self.contents = list()
+        self.offset_lists = list()
+        return datas
+    
+    def _load_bies_file(self, data_file, delimiter):
+        """
+        加载数据集文件
+        Args:
+            data_file(str): 数据集文件路径
+            delimiter(str): 分隔符
+        Returns: 无
+        """
+        datas = list()
+        word_list = list()
+        tag_list = list()
+        label_set = {"O"}
+        with open(data_file, 'r', encoding='utf-8') as rf:
+            for line in rf:
+                line = line.rstrip()
+                if line:
+                    word, tag = line.split(delimiter)
+                    word_list.append(word)
+                    tag_list.append(tag)
+                    if len(tag) > 1:
+                        tag_name = tag[2:]
+                        label_set.add(f"B-{tag_name}")
+                        label_set.add(f"I-{tag_name}")
+                        label_set.add(f"E-{tag_name}")
+                        label_set.add(f"S-{tag_name}")
                 else:
                     if word_list:
                         datas.append([word_list, tag_list])
@@ -288,7 +326,8 @@ class NerBertDataset(Dataset):
         return self.offset_lists
     
     def tokenize(self, text):
-        _tokens = []
+        _tokens = list()
+        _offsets = list()
         for c in text:
             if self._do_lower:
                 c = c.lower()
@@ -296,7 +335,8 @@ class NerBertDataset(Dataset):
                 _tokens.append("[unused1]")
             else:
                 _tokens.append(c)
-        return _tokens
+            _offsets.append(1)
+        return _tokens, _offsets
 
     def _to_features(self, datas, file_format="general", tokenizer=None, max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=0,
@@ -310,7 +350,7 @@ class NerBertDataset(Dataset):
         """
         features = list()
         for (ex_index, data) in enumerate(datas):
-            tokens = self.tokenize(data[0])
+            tokens, _ = self.tokenize(data[0])
             if file_format != "biaffine":
                 label_ids = [self.label_to_id[x] for x in data[1]]
             # Account for [CLS] and [SEP] with "- 2".

@@ -4,10 +4,21 @@ dict:
   district: "resources/data/dict/address/clean/district.txt"
   town: "resources/data/dict/address/clean/town.txt"
   community: "resources/data/dict/address/clean/community.txt"
+  intersection: "resources/data/dict/address/clean/intersection.txt"
+  assist: "resources/data/dict/address/clean/assist.txt"
+re:
+  roomno: "resources/data/re/address/roomno.txt"
+  floorno: "resources/data/re/address/floorno.txt"
+  houseno: "resources/data/re/address/houseno.txt"
+  cellno: "resources/data/re/address/cellno.txt"
+  distance: "resources/data/re/address/distance.txt"
+  village_group: "resources/data/re/address/village_group.txt"
+  roadno: "resources/data/re/address/roadno.txt"
+  assist: "resources/data/re/address/assist.txt"
 plm:
   name: bert_biaffine
   decode_type: biaffine
-  max_length: 100
-  model_path: "resources/data/output/ner/zh/ccks/address/0619/bert_biaffine/"
+  max_length: 60
+  model_path: "resources/data/output/ner/zh/ccks/address/0621/bert_biaffine/"
   do_lower_case: True
   device: cuda
