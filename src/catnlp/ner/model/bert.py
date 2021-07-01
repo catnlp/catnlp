@@ -3,14 +3,20 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import (
+from .nezha.modelling_nezha import (
     BertModel,
     BertPreTrainedModel
 )
+# from transformers import (
+#     BertModel,
+#     BertPreTrainedModel
+# )
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, \
     pad_packed_sequence
 from ...layer.decoder.crf import CRF
+from ..loss.dice_loss import DiceLoss
+from ..loss.focal_loss import FocalLoss
 
 
 class BertSoftmax(BertPreTrainedModel):
@@ -127,14 +133,14 @@ class BertLstmCrf(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.bert = BertModel(config, add_pooling_layer=False)
+        self.bert = BertModel(config) #, add_pooling_layer=False)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.lstm = nn.LSTM(config.hidden_size, config.hidden_size// 2,
                             batch_first=True,
                             bidirectional=True)
         self.classifier = nn.Linear(config.hidden_size, self.num_labels)
         self.crf = CRF(num_tags=self.num_labels, batch_first=True)
-        self.init_weights()
+        # self.init_weights()
 
     def forward(
         self,
@@ -248,7 +254,7 @@ class BertBiaffine(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.bert = BertModel(config, add_pooling_layer=False)
+        self.bert = BertModel(config) #, add_pooling_layer=False)
         self.dropout = nn.Dropout(0.2)
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
         hidden_size = config.hidden_size
@@ -256,13 +262,19 @@ class BertBiaffine(BertPreTrainedModel):
                             batch_first=True,
                             bidirectional=True,)
                             # dropout=0.2)
-        self.start_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=128),
+        self.start_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=200),
                                             torch.nn.ReLU())
-        self.end_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=128),
+        self.end_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=200),
                                             torch.nn.ReLU())
-        self.biaffne_layer = biaffine(128, config.num_labels)
-        self.loss_func = CrossEntropyLoss(reduction="none")
-        self.init_weights()
+        self.biaffne_layer = biaffine(200, config.num_labels)
+        loss_name = config.loss_name
+        if loss_name == "dice":
+            self.loss_func = DiceLoss(reduction="none")
+        elif loss_name == "focal":
+            self.loss_func = FocalLoss(reduction="none")
+        else:
+            self.loss_func = CrossEntropyLoss(reduction="none")
+        # self.init_weights()
 
     def forward(
         self,
@@ -294,6 +306,8 @@ class BertBiaffine(BertPreTrainedModel):
         sequence_output = outputs[0]
 
         sequence_output = self.dropout(sequence_output)
+        # todo
+        sequence_output = sequence_output
         
         sequence_output, _ = self.lstm(sequence_output)
 
@@ -309,7 +323,7 @@ class BertBiaffine(BertPreTrainedModel):
             span_loss = self.loss_func(input=span_logits, target=labels)
             label_mask = label_mask.view(size=(-1,))
             span_loss *= label_mask
-            output = torch.sum(span_loss) / sequence_output.size()[0]
+            output = span_loss.sum() / label_mask.sum()
         else:
             output = nn.functional.softmax(span_logits, dim=-1)
             # output = torch.argmax(output, dim=-1)

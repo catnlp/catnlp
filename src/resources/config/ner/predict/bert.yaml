@@ -7,7 +7,7 @@ dict:
   intersection: "resources/data/dict/address/clean/intersection.txt"
   assist: "resources/data/dict/address/clean/assist.txt"
 re:
-  roomno: "resources/data/re/address/roomno.txt"
+  # roomno: "resources/data/re/address/roomno.txt"
   floorno: "resources/data/re/address/floorno.txt"
   houseno: "resources/data/re/address/houseno.txt"
   cellno: "resources/data/re/address/cellno.txt"

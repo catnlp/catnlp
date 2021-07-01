@@ -109,6 +109,8 @@ class PlmTrain:
             model_func = AlbertTinySoftmax
         else:
             raise ValueError
+        
+        pretrained_config.loss_name = config.get("loss_name")
 
         model = model_func.from_pretrained(
             config.get("model_path"),
@@ -209,7 +211,6 @@ class PlmTrain:
                     optimizer.zero_grad()
                     progress_bar.update(1)
                     completed_steps += 1
-
                 if completed_steps >= config.get("max_train_steps"):
                     break
 
@@ -268,6 +269,12 @@ class PlmTrain:
             if f1 > best_f1:
                 best_f1 = f1
                 print(table)
-                accelerator.wait_for_everyone()
-                unwrapped_model = accelerator.unwrap_model(model)
-                unwrapped_model.save_pretrained(config.get("output"), save_function=accelerator.save)
+                output_model = config.get("output")
+                output_model_file = os.path.join(output_model, "pytorch_model.bin")
+                torch.save(model.state_dict(), output_model_file)
+                output_config_file = os.path.join(output_model, "config.json")
+                with open(output_config_file, 'w') as f:
+                    f.write(model.config.to_json_string())
+                # accelerator.wait_for_everyone()
+                # unwrapped_model = accelerator.unwrap_model(model)
+                # unwrapped_model.save_pretrained(config.get("output"), save_function=accelerator.save)

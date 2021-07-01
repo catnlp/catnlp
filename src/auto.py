@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--n_trials", type=int,
-                        default=50, help="训练配置")
+                        default=20, help="训练配置")
     args = parser.parse_args()
 
     task = args.task.lower()

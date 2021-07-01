@@ -91,7 +91,7 @@ def address(sf, tf):
 
 if __name__ == "__main__":
     source_path = Path("resources/data/dataset/ner/zh/ccks/address/0621")
-    source_file = source_path / "试一下_addr_parsing_runid_0628.txt"
+    source_file = source_path / "试一下_addr_parsing_runid_0630_1.txt"
     target_file = source_path / "试一下_addr_parsing_runid.txt"
     process(source_file, target_file, method="address")
 

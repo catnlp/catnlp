@@ -108,7 +108,7 @@ def objective(trial):
         model_func = AlbertTinySoftmax
     else:
         raise ValueError
-
+    pretrained_config.loss_name = config.get("loss_name")
     model = model_func.from_pretrained(
         config.get("model_path"),
         config=pretrained_config
