@@ -229,7 +229,7 @@ class PlmTrain:
                 labels = batch[3]
                 predictions_gathered = accelerator.gather(outputs)
                 labels_gathered = accelerator.gather(labels)
-                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, input_len=batch[5], decode_type=decode_type, device=device_type)
+                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, masks=batch[6], decode_type=decode_type, device=device_type)
                 pred_lists += preds
                 gold_lists += golds
             

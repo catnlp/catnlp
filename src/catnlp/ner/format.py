@@ -82,7 +82,11 @@ class NerFormat:
             for line in sf:
                 line = line.rstrip()
                 if line:
-                    word, tag = line.split("\t")
+                    if line.find("-DOCSTART-") != -1:
+                        continue
+                    tokens = line.split("\t")
+                    word = tokens[0]
+                    tag = tokens[-1]
                     word_list.append(word)
                     if tag != "O":
                         prefix, tname = tag.split("-")
@@ -102,11 +106,8 @@ class NerFormat:
                         pre_o = True
                     idx += 1
                 elif entities:
-                    text = "".join(word_list)
-                    if is_clean:
-                        text = clean_text(text)
                     tf.write(json.dumps({
-                        "text": text,
+                        "words": word_list,
                         "labels": entities
                     }, ensure_ascii=False) + "\n")
                     word_list = []
