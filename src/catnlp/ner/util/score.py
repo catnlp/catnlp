@@ -27,6 +27,7 @@ def get_f1(gold_lists, pred_lists, format):
             pred_type_dict["total"].add((i, start, end, tag))
             pred_type_dict[tag].add((i, start, end, tag))
     result_dict = {}
+    print(gold_type_dict)
     for tag in gold_type_dict:
         result_dict[tag] = f1_score(gold_type_dict[tag], pred_type_dict[tag])
     table = pretty_print(result_dict)

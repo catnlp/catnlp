@@ -24,6 +24,7 @@ from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.score import get_f1
 from .util.decode import get_labels
+from .util.merge import get_interval
 
 
 class PlmTrain:
@@ -213,6 +214,8 @@ class PlmTrain:
                     completed_steps += 1
                 if completed_steps >= config.get("max_train_steps"):
                     break
+                if step == 10: 
+                    break
 
             model.eval()
             device_type = device.type
@@ -232,6 +235,12 @@ class PlmTrain:
                 preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, masks=batch[6], decode_type=decode_type, device=device_type)
                 pred_lists += preds
                 gold_lists += golds
+                for token, gold in zip(batch[0], golds):
+                    print("+++++++++++++++++++++")
+                    print(tokenizer.convert_ids_to_tokens(list(token)))
+                    print(get_interval(gold))
+                if step == 5:
+                    exit(1)
             
             if file_format == "split":
                 new_pred_lists = list()

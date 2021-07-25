@@ -373,7 +373,7 @@ class NerBertDataset(Dataset):
             if len(tmp_tokens) == 0:
                 raise ValueError
             if len(tmp_tokens) == 1:
-                _tokens.append(tmp_tokens)
+                _tokens.append(tmp_tokens[0])
                 _labels.append(label)
                 _masks.append(1)
                 continue
@@ -402,12 +402,12 @@ class NerBertDataset(Dataset):
                 word = word.lower()
             if re.match(r"\s", word):
                 word = "[unused1]"
-            offset_dict[idx] = len(tmp_tokens)
+            offset_dict[idx] = len(_tokens)
             tmp_tokens = self.tokenizer.tokenize(word)
             if len(tmp_tokens) == 0:
                 raise ValueError
             if len(tmp_tokens) == 1:
-                _tokens.append(tmp_tokens)
+                _tokens.append(tmp_tokens[0])
                 _masks.append(1)
                 continue
             for idx, tmp_token in enumerate(tmp_tokens):
@@ -416,7 +416,7 @@ class NerBertDataset(Dataset):
                     _masks.append(1)
                 else:
                     _masks.append(0)
-        _labels = list()
+        offset_dict[len(words)] = len(_tokens)
         for idx, label in enumerate(labels):
             _tmp_label = [offset_dict[label[0]], offset_dict[label[1]], label[2]]
             _labels.append(_tmp_label)
@@ -435,7 +435,7 @@ class NerBertDataset(Dataset):
         """
         features = list()
         for (ex_index, data) in enumerate(datas):
-            tokens, labels, masks = self.tokenize(data[0], data[1])
+            tokens, labels, masks = self.tokenize(data[0], data[1], file_format)
             if file_format != "biaffine":
                 label_ids = [self.label_to_id[x] for x in labels]
             # Account for [CLS] and [SEP] with "- 2".

@@ -3,14 +3,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .nezha.modelling_nezha import (
-    BertModel,
-    BertPreTrainedModel
-)
-# from transformers import (
+# from .nezha.modelling_nezha import (
 #     BertModel,
 #     BertPreTrainedModel
 # )
+from transformers import (
+    BertModel,
+    BertPreTrainedModel
+)
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, \
     pad_packed_sequence

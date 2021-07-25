@@ -48,22 +48,27 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks):
         gold_entities = list()
         offset_dict = dict()
         count = -1
-        for idx, m in mask:
+        for idx, m in enumerate(mask):
+            if idx == 0:
+                offset_dict[idx] = 0
+                continue
             if m == 1:
                 count += 1
             offset_dict[idx] = count
-        max_len = len(masks)
+        max_len = len(mask)
         for i in range(1, max_len):
             for j in range(i, max_len):
+                if mask[i] == 0 or mask[j] == 0:
+                    continue
                 pred_scores = pred[i][j]
                 pred_label_id = np.argmax(pred_scores)
                 gold_label_id = gold[i][j]
+                start_idx = offset_dict[i]
+                end_idx = offset_dict[j+1]
                 if gold_label_id > 0:
-                    start_idx = offset_dict[i - 1]
-                    end_idx = offset_dict[j]
                     gold_entities.append([start_idx, end_idx, label_list[gold_label_id]])
-                    if pred_label_id > 0:
-                        pred_entities.append([start_idx, end_idx, label_list[pred_label_id], pred_scores[pred_label_id]])
+                if pred_label_id > 0:
+                    pred_entities.append([start_idx, end_idx, label_list[pred_label_id], pred_scores[pred_label_id]])
 
         pred_entities = sorted(pred_entities, reverse=True, key=lambda x:x[3])
         new_pred_entities = list()
@@ -92,6 +97,11 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks):
             tmp_golds[start] = f"B-{tag}"
             for i in range(start+1, end):
                 tmp_golds[i] = f"I-{tag}"
+        # print("entities")
+        # print(pred_entities)
+        # print(gold_entities)
+        # print(masks)
+        # print(offset_dict)
         preds.append(tmp_preds)
         golds.append(tmp_golds)
     return preds, golds
