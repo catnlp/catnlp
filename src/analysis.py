@@ -18,6 +18,6 @@ def analysis_ner(source, file_format, delimiter):
 
 if __name__ == "__main__":
     delimiter = "\t"
-    file_format = "conll"
-    source_file = "resources/data/dataset/ner/zh/ccks/address/bies/train.txt"
+    file_format = "json"
+    source_file = "resources/data/dataset/ner/zh/ccks/cmeee/0807/dev.json"
     analysis_ner(source_file, file_format, delimiter)

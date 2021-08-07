@@ -8,6 +8,7 @@ import torch
 
 from .train_plm import PlmTrain
 from .train_lstm import LstmTrain
+from .train_plm_cmeee import PlmTrainCmeee
 
 
 class NerTrain:
@@ -17,6 +18,8 @@ class NerTrain:
         model_type = config.get("type", "").lower()
         if model_type == "plm":
             ner_train = PlmTrain(config)
+        elif model_type == "cmeee":
+            ner_train = PlmTrainCmeee(config)
         else:
             ner_train = LstmTrain(config)
             ner_train.train()

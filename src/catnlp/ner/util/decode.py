@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def get_labels(predictions, references, label_list, masks, decode_type="general", device="cpu"):
+def get_labels(predictions, references, label_list, masks, decode_type="general", device="cpu", is_flat=True):
     if device == "cpu":
         y_pred = predictions.detach().clone().numpy()
         y_true = references.detach().clone().numpy()
@@ -13,7 +13,7 @@ def get_labels(predictions, references, label_list, masks, decode_type="general"
     if decode_type == "general":
         return get_general_labels(y_pred, y_true, label_list, masks)
     elif decode_type == "biaffine":
-        return get_biaffine_labels(y_pred, y_true, label_list, masks)
+        return get_biaffine_labels(y_pred, y_true, label_list, masks, is_flat)
     else:
         raise ValueError
 
@@ -40,7 +40,7 @@ def get_general_labels(y_pred, y_true, label_list, masks):
     return preds, golds
 
 
-def get_biaffine_labels(y_pred, y_true, label_list, masks):
+def get_biaffine_labels(y_pred, y_true, label_list, masks, is_flat):
     preds = list()
     golds = list()
     for pred, gold, mask in zip(y_pred, y_true, masks):
@@ -77,7 +77,10 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks):
             flag = True
             for new_pred_entity in new_pred_entities:
                 new_start, new_end, _ = new_pred_entity
-                if start < new_end and new_start < end:
+                if start < new_start <= end < new_end or new_start < start <= end < new_end:
+                    flag = False
+                    break
+                if is_flat and start < new_end and new_start < end:
                     #for flat ner nested mentions are not allowed
                     flag = False
                     break
@@ -85,23 +88,25 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks):
                 new_pred_entities.append([start, end, tag])
         pred_entities = new_pred_entities
         count += 1
-        tmp_preds = ["O"] * (count)
-        tmp_golds = ["O"] * (count)
-        for entity in pred_entities:
-            start, end, tag = entity
-            tmp_preds[start] = f"B-{tag}"
-            for i in range(start+1, end):
-                tmp_preds[i] = f"I-{tag}"
-        for entity in gold_entities:
-            start, end, tag = entity
-            tmp_golds[start] = f"B-{tag}"
-            for i in range(start+1, end):
-                tmp_golds[i] = f"I-{tag}"
-        # print("entities")
-        # print(pred_entities)
-        # print(gold_entities)
-        # print(masks)
-        # print(offset_dict)
-        preds.append(tmp_preds)
-        golds.append(tmp_golds)
+        # tmp_preds = ["O"] * (count)
+        # tmp_golds = ["O"] * (count)
+        # for entity in pred_entities:
+        #     start, end, tag = entity
+        #     tmp_preds[start] = f"B-{tag}"
+        #     for i in range(start+1, end):
+        #         tmp_preds[i] = f"I-{tag}"
+        # for entity in gold_entities:
+        #     start, end, tag = entity
+        #     tmp_golds[start] = f"B-{tag}"
+        #     for i in range(start+1, end):
+        #         tmp_golds[i] = f"I-{tag}"
+        # # print("entities")
+        # # print(pred_entities)
+        # # print(gold_entities)
+        # # print(masks)
+        # # print(offset_dict)
+        # preds.append(tmp_preds)
+        # golds.append(tmp_golds)
+        preds.append(pred_entities)
+        golds.append(gold_entities)
     return preds, golds

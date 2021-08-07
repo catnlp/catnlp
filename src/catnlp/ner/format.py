@@ -399,8 +399,13 @@ class JsonFormat:
         label_dict = defaultdict(int)
         for data in self._data:
             labels = data.get("labels")
+            if not labels:
+                labels = data.get("ner")
             for label in labels:
-                _, _, tag = label
+                try:
+                    _, _, tag = label
+                except Exception:
+                    _, _, tag, _ = label
                 label_dict[tag] += 1
         return label_dict
 

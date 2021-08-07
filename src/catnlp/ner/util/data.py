@@ -304,10 +304,12 @@ class NerBertDataset(Dataset):
                 line = json.loads(line)
                 if not line:
                     continue
-                words = line["words"]
-                entities = line["labels"]
+                words = line["text"]
+                entities = line.get("labels")
+                if not entities:
+                    entities = line.get("ner")
                 for entity in entities:
-                    label_set.add(entity[-1])
+                    label_set.add(entity[2])
                 datas.append([words, entities])
         self.label_list = ["[PAD]"] + sorted(list(label_set))
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
@@ -341,6 +343,7 @@ class NerBertDataset(Dataset):
         _tokens = list()
         _labels = list()
         _masks = list()
+        _word_lens = list()
         for word, label in zip(words, labels):
             if self._do_lower:
                 word = word.lower()
@@ -349,6 +352,7 @@ class NerBertDataset(Dataset):
             tmp_tokens = self.tokenizer.tokenize(word)
             if len(tmp_tokens) == 0:
                 raise ValueError
+            _word_lens.append(len(tmp_tokens))
             for idx, tmp_token in enumerate(tmp_tokens):
                 _tokens.append(tmp_token)
                 if idx == 0:
@@ -358,12 +362,13 @@ class NerBertDataset(Dataset):
                     if label.startswith("B-"):
                         label = "I" + label[1:]
                 _labels.append(label)
-        return _tokens, _labels, _masks
+        return _tokens, _labels, _masks, _word_lens
     
     def tokenize_bies(self, words, labels):
         _tokens = list()
         _labels = list()
         _masks = list()
+        _word_lens = list()
         for word, label in zip(words, labels):
             if self._do_lower:
                 word = word.lower()
@@ -372,6 +377,7 @@ class NerBertDataset(Dataset):
             tmp_tokens = self.tokenizer.tokenize(word)
             if len(tmp_tokens) == 0:
                 raise ValueError
+            _word_lens.append(len(tmp_tokens))
             if len(tmp_tokens) == 1:
                 _tokens.append(tmp_tokens[0])
                 _labels.append(label)
@@ -390,22 +396,23 @@ class NerBertDataset(Dataset):
                 if idx == len(tmp_tokens) - 1:
                     tmp_label = "E" + label[1:]
                 _labels.append(tmp_label)
-        return _tokens, _labels, _masks
+        return _tokens, _labels, _masks, _word_lens
     
     def tokenize_biaffine(self, words, labels):
         _tokens = list()
         _labels = list()
         _masks = list()
-        offset_dict = dict()
+        _word_lens = list()
         for idx, word in enumerate(words):
             if self._do_lower:
                 word = word.lower()
             if re.match(r"\s", word):
                 word = "[unused1]"
-            offset_dict[idx] = len(_tokens)
             tmp_tokens = self.tokenizer.tokenize(word)
             if len(tmp_tokens) == 0:
-                raise ValueError
+                tmp_tokens = ['[UNK]']
+                # raise ValueError
+            _word_lens.append(len(tmp_tokens))
             if len(tmp_tokens) == 1:
                 _tokens.append(tmp_tokens[0])
                 _masks.append(1)
@@ -416,12 +423,8 @@ class NerBertDataset(Dataset):
                     _masks.append(1)
                 else:
                     _masks.append(0)
-        offset_dict[len(words)] = len(_tokens)
-        for idx, label in enumerate(labels):
-            _tmp_label = [offset_dict[label[0]], offset_dict[label[1]], label[2]]
-            _labels.append(_tmp_label)
-
-        return _tokens, _labels, _masks
+        _labels = labels
+        return _tokens, _labels, _masks, _word_lens
 
     def _to_features(self, datas, file_format="general", max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=0,
@@ -435,7 +438,7 @@ class NerBertDataset(Dataset):
         """
         features = list()
         for (ex_index, data) in enumerate(datas):
-            tokens, labels, masks = self.tokenize(data[0], data[1], file_format)
+            tokens, labels, masks, word_lens = self.tokenize(data[0], data[1], file_format)
             if file_format != "biaffine":
                 label_ids = [self.label_to_id[x] for x in labels]
             # Account for [CLS] and [SEP] with "- 2".
@@ -505,7 +508,10 @@ class NerBertDataset(Dataset):
                 for i in range(max_seq_length):
                     label_ids.append([0 for _ in range(max_seq_length)])
                 for entity in data[1]:
-                    start, end, tag = entity
+                    try:
+                        start, end, tag = entity
+                    except Exception:
+                        start, end, tag, _ = entity
                     # 默认第一个字符为[CLS]
                     if end > input_len - 1:
                         print("big")

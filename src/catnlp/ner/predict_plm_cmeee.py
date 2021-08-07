@@ -32,13 +32,12 @@ from ..common.load_file import load_label_file
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
 from .model.bert import BertBiaffine, BertCrf, BertSoftmax, BertLstmCrf
 from .util.tokenizer import NerBertTokenizer
-from .util.split import merge_entities
 
 
 logger = logging.getLogger(__name__)
 
 
-class PredictPlm:
+class PredictPlmCmeee:
     def __init__(self, config) -> None:
         self.max_seq_length = config.get("max_length")
         self.do_lower = config.get("do_lower_case")
@@ -74,6 +73,7 @@ class PredictPlm:
         self.model.to(torch.device(self.device))
         self.model.eval()
         self.decode_type = config.get("decode_type")
+        self.split = config.get("split")
     
     def get_labels(self, predictions, masks):
         # Transform predictions and references tensos to numpy arrays
@@ -118,9 +118,12 @@ class PredictPlm:
                 if m == 1:
                     count += 1
                 offset_dict[idx] = count
+            
             max_len = len(mask)
             for i in range(1, max_len):
                 for j in range(i, max_len):
+                    if mask[i] == 0 or mask[j] == 0:
+                        continue
                     pred_scores = pred[i][j]
                     pred_label_id = np.argmax(pred_scores)
                     start_idx = offset_dict[i]
@@ -135,33 +138,40 @@ class PredictPlm:
                 flag = True
                 for new_pred_entity in new_pred_entities:
                     new_start, new_end, _ = new_pred_entity
-                    if start < new_end and new_start < end:
+                    if start < new_start <= end < new_end or new_start < start <= end < new_end:
                         #for flat ner nested mentions are not allowed
                         flag = False
                         break
                 if flag:
                     new_pred_entities.append([start, end, tag])
-            pred_entities = new_pred_entities
-            count += 1
-            tmp_preds = ["O"] * (count)
-            for entity in pred_entities:
-                start, end, tag = entity
-                tmp_preds[start] = f"B-{tag}"
-                for i in range(start+1, end):
-                    tmp_preds[i] = f"I-{tag}"
-            preds.append(tmp_preds)
+            preds.append(new_pred_entities)
         return preds
     
     def predict(self, text):
-        inputs, masks = self.preprocess([text])
-        outputs = self.model(**inputs)
+        inputs, masks, offset_list = self.preprocess(text)
+        try:
+            outputs = self.model(**inputs)
+        except Exception as e:
+            print(text)
+            print(inputs)
+            exit(1)
         entity_lists = self.postprocess([text], outputs, masks)
-        return entity_lists[0]
+        if self.split:
+            entity_list = self.recover(entity_lists, offset_list)
+        else:
+            entity_list = entity_lists[0]
+        # entity_list = self.merge_entity_list(entity_list)
+        return entity_list
     
-    def preprocess(self, text_list):
+    def preprocess(self, text):
+        if self.split:
+            text_list, _, offset_list = self.cut(text, None, max_len=200, overlap_len=0)
+        else:
+            text_list = [text]
+            offset_list = list()
         input_ids, input_masks, input_len, masks = self._to_features(text_list, self.tokenizer, self.max_seq_length)
         inputs = {"input_ids": input_ids, "attention_mask": input_masks, "input_len": input_len}
-        return inputs, masks
+        return inputs, masks, offset_list
 
     def postprocess(self, texts, outputs, masks):
         entity_lists = list()
@@ -171,21 +181,146 @@ class PredictPlm:
             entity_lists.append(entity_list)
         return entity_lists
     
-    def get_entity_list(self, text, tag_list):
-        entity_list = list()
-        pre_label = "O"
-        for idx, (_, tag) in enumerate(zip(text, tag_list)):
-            if tag[0] != "O":
-                tag_name = tag[2:]
-                if tag[0] in ["B", "S"]:
-                    entity_list.append([idx, idx+1, tag_name])
-                elif pre_label == tag_name:
-                    entity_list[-1][1] += 1
+    def recover(self, entity_lists, offset_list):
+        new_entity_list = list()
+        for entity_list, offset in zip(entity_lists, offset_list):
+            for entity in entity_list:
+                start, end, tag, word = entity
+                new_entity_list.append([start+offset, end+offset, tag, word])
+        return new_entity_list
+
+    def cut(self, text, entities=None, max_len=256, overlap_len=50):
+        tags = self.get_tags(len(text), entities)
+        sents = self.get_sents(text, tags)
+        # sents = re.split(r'([。？?，,；;！!]|(?<!\d)\.(?!\d))', text)
+        sents_len = len(sents)
+        offset_list = list()
+        i = 0
+        end_idx = 0
+        sent_list = list()
+        entity_lists = list()
+        while i < sents_len:
+            sent = sents[i]
+            sent_len = len(sent)
+            end_idx += sent_len
+            if not sent or re.match(r'([。？?，,；;！!]|(?<!\d)\.(?!\d))', sent):
+                i += 1
+                continue
+            # 搜索前缀
+            pre_list = list()
+            pre_list_len = 0
+            j = i - 1
+            while j >= 0:
+                sent_j = sents[j]
+                sent_j_len = len(sent_j)
+                if pre_list_len + sent_j_len < overlap_len:
+                    pre_list.append(sent_j)
+                    pre_list_len += sent_j_len
                 else:
-                    entity_list.append([idx, idx+1, tag_name])
-                pre_label = tag_name
-            else:
-                pre_label = "O"
+                    break
+                j -= 1
+            pre_idx = 0
+            pre_list = pre_list[::-1]
+            for tmp_sent in pre_list:
+                if not tmp_sent or re.match(r'([。？?，,；;！!]|(?<!\d)\.(?!\d))', tmp_sent):
+                    pre_idx += 1
+                    pre_list_len -= len(tmp_sent)
+                else:
+                    break
+            pre_list = pre_list[pre_idx:]
+
+            # 搜索后缀
+            post_list = list()
+            post_list_len = 0
+            j = i + 1
+            while j < sents_len:
+                sent_j = sents[j]
+                sent_j_len = len(sent_j)
+                if pre_list_len + sent_len + post_list_len + sent_j_len < max_len:
+                    post_list.append(sent_j)
+                    post_list_len += sent_j_len
+                else:
+                    break
+                j += 1
+            
+            # 拼接
+            sent = "".join(pre_list + [sent] + post_list)
+            sent_list.append(sent)
+            end_idx += post_list_len
+            start_idx = end_idx - len(sent)
+            offset_list.append(start_idx)
+            if entities:
+                entity_list = self.get_entities(entities, start_idx, end_idx)
+                entity_lists.append(entity_list)
+            i = j
+
+        if self.valid(text, sent_list, offset_list):
+            return sent_list, entity_lists, offset_list
+        else:
+            raise ValueError
+
+    def get_tags(self, text_len, entities):
+        tags = [True] * text_len
+        if entities:
+            for entity in entities:
+                start, end, _, _ = entity
+                for i in range(start, end):
+                    tags[i] = False
+        return tags
+
+    def get_sents(self, text, tags):
+        sents = list()
+        start = 0
+        text_len = len(text)
+        for idx, (word, tag) in enumerate(zip(text, tags)):
+            if not tag:
+                continue
+            if re.search(r"[。？?；;！!]", word):  # catnlp 去掉逗号
+                sent = text[start: idx]
+                if sent:
+                    sents.append(sent)
+                sents.append(word)
+                start = idx + 1
+            elif word == ".":
+                if idx > 1 and re.search(r"\d", text[idx-1]):
+                    continue
+                if idx < text_len - 1 and re.search(r"\d", text[idx+1]):
+                    continue
+                sent = text[start: idx]
+                if sent:
+                    sents.append(sent)
+                sents.append(word)
+                start = idx + 1
+        if start < text_len:
+            sents.append(text[start: text_len])
+        return sents
+
+    def get_entities(self, entities, start, end):
+        entity_list = list()
+        for entity in entities:
+            s, e, t, w = entity
+            if start <= s and e <= end and s <= e:
+                entity_list.append([s-start, e-start, t, w])
+        return entity_list
+
+    def valid(self, text, sent_list, offset_list):
+        for offset, sent in zip(offset_list, sent_list):
+            sent_len = len(sent)
+            start = offset
+            end = offset + sent_len
+            if text[start: end] != sent:
+                print("---")
+                print(text[start: end])
+                print(sent)
+                return False
+        return True
+    
+    def get_entity_list(self, text, entities):
+        entity_list = list()
+        for entity in entities:
+            start, end, tag = entity
+            word = text[start: end]
+            entity_list.append([start, end, tag, word])
         return entity_list
     
     def tokenize(self, words, format="bio"):
@@ -244,13 +379,13 @@ class PredictPlm:
         _tokens = list()
         _masks = list()
         for idx, word in enumerate(words):
-            if self._do_lower:
+            if self.do_lower:
                 word = word.lower()
             if re.match(r"\s", word):
                 word = "[unused1]"
             tmp_tokens = self.tokenizer.tokenize(word)
             if len(tmp_tokens) == 0:
-                raise ValueError
+                tmp_tokens = ['[UNK]']
             if len(tmp_tokens) == 1:
                 _tokens.append(tmp_tokens[0])
                 _masks.append(1)
