@@ -24,14 +24,4 @@ do_lower_case: True
 task_name: ner
 cpu: False
 
-# seed:100, plm_lr:2.0228447859367986e-5, not_plm_lr:7.881173748974317e-5, epoch:15
-# seed:31, plm_lr:3.703369460189865e-5, not:0.0007768910276375454, epoch:16, value:0.945573
-# ce: Trial 12 finished with value: 0.9477646573505905 and parameters: {'seed': 100, 'plm_lr': 1.0297127640588862e-05, 'not_plm_lr': 5.143696885811861e-05, 'num_train_epochs': 14}. Best is trial 12 with value: 0.9477646573505905
-# focal:
-#   Best trial:
-#   Value:  0.9452422770947412
-#   Params: 
-#     seed: 31
-#     plm_lr: 3.113790515152554e-05
-#     not_plm_lr: 0.0001387823250664349
-#     num_train_epochs: 10
+# Trial 3 finished with value: 0.6782328020980432 and parameters: {'plm_lr': 2e-05, 'not_plm_lr': 0.0001, 'num_train_epochs': 13}. Best is trial 3 with value: 0.6782328020980432.
