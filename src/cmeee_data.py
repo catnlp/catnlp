@@ -1,8 +1,10 @@
+from genericpath import exists
 import json
 import re
 import os
 import random
 from pathlib import Path
+from sklearn.model_selection import KFold
 
 
 def tojson(source, target):
@@ -39,6 +41,32 @@ def tojson(source, target):
             }, ensure_ascii=False) + "\n")
         print(punc_set)
         print(count)
+
+
+def kfold_file(source, target_dir, k):
+    with open(source, "r", encoding="utf-8") as sf:
+        line_list = list()
+        for line in sf:
+            line = json.loads(line)
+            if not line:
+                continue
+            line_list.append(line)
+        random.shuffle(line_list)
+        kf = KFold(n_splits=k)
+        for idx, (train_idxs, dev_idxs) in enumerate(kf.split(line_list)):
+            cur_dir = target_dir / f"{idx}"
+            if not os.path.exists(cur_dir):
+                os.makedirs(cur_dir, exist_ok=True)
+            train_file = cur_dir / f"train.json"
+            dev_file = cur_dir / f"dev.json"
+            with open(train_file, "w", encoding="utf-8") as tf, \
+                    open(dev_file, "w", encoding="utf-8") as df:
+                for i in train_idxs:
+                    line = json.dumps(line_list[i], ensure_ascii=False) + "\n"
+                    tf.write(line)
+                for i in dev_idxs:
+                    line = json.dumps(line_list[i], ensure_ascii=False) + "\n"
+                    df.write(line)
 
 
 def split_file(source, train_all, train, dev):
@@ -213,11 +241,12 @@ def valid(text, sent_list, offset_list):
 
 
 if __name__ == "__main__":
-    source_path = Path("raw")
-    json_path = Path("json")
-    split_path = Path("split")
-    cut_path = Path("cut")
-    for path in [json_path, split_path, cut_path]:
+    source_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/raw")
+    json_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/json")
+    # split_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/split")
+    kfold_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/kfold")
+    cut_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/cut")
+    for path in [json_path, kfold_path, cut_path]:
         if not os.path.exists(path):
             os.mkdir(path)
     print("tojson")
@@ -227,16 +256,25 @@ if __name__ == "__main__":
         target_file = json_path / f"{data}.json"
         tojson(source_file, target_file)
     
-    print("split_file")
+    print("kfold_file")
+    k = 5
     source_file = json_path / "train.json"
-    train_all_file = split_path / "train_all.json"
-    train_file = split_path / "train.json"
-    dev_file = split_path / "dev.json"
-    split_file(source_file, train_all_file, train_file, dev_file)
+    kfold_file(source_file, kfold_path, k=k)
+    
+    # print("split_file")
+    # source_file = json_path / "train.json"
+    # train_all_file = split_path / "train_all.json"
+    # train_file = split_path / "train.json"
+    # dev_file = split_path / "dev.json"
+    # split_file(source_file, train_all_file, train_file, dev_file)
 
     print("cut_file")
-    datas = ["train_all", "train", "dev"]
-    for data in datas:
-        source_file = split_path / f"{data}.json"
-        target_file = cut_path / f"{data}.json"
-        cut_file(source_file, target_file)
+    for i in range(k):
+        datas = ["train", "dev"]
+        for data in datas:
+            source_file = kfold_path / f"{i}/{data}.json"
+            cur_path = cut_path / f"{i}"
+            if not os.path.exists(cur_path):
+                os.makedirs(cur_path, exist_ok=True)
+            target_file = cur_path / f"{data}.json"
+            cut_file(source_file, target_file)

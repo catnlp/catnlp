@@ -65,11 +65,11 @@ def f1_score(gold_set, pred_set):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="评估结果")
     parser.add_argument("--gold_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/cmeee/0807/test.json", help="测试文件")
+                        default="resources/data/dataset/ner/zh/ccks/cmeee/0808/test.json", help="测试文件")
     parser.add_argument("--pred_file", type=str,
-                    default="resources/data/dataset/ner/zh/ccks/cmeee/0807/test_pred.json", help="结果文件")
+                    default="resources/data/dataset/ner/zh/ccks/cmeee/0808/test_pred.json", help="结果文件")
     parser.add_argument("--score_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/cmeee/0807/score.text", help="预测配置")
+                        default="resources/data/dataset/ner/zh/ccks/cmeee/0808/score.text", help="预测配置")
     args = parser.parse_args()
 
     with open(args.gold_file, "r", encoding="utf-8") as gf, \

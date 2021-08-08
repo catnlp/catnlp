@@ -526,7 +526,7 @@ class NerBertDataset(Dataset):
             assert len(label_ids) == max_seq_length
             assert len(label_mask) == max_seq_length
             assert len(masks) == max_seq_length
-            if ex_index < 3:
+            if ex_index < 1:
                 print("*** Example ***")
                 print("tokens: ", tokens)
                 print("input_ids: ", input_ids)
