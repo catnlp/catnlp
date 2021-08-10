@@ -77,7 +77,7 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks, is_flat):
             flag = True
             for new_pred_entity in new_pred_entities:
                 new_start, new_end, _ = new_pred_entity
-                if start < new_start <= end < new_end or new_start < start <= end < new_end:
+                if start < new_start <= end < new_end or new_start < start <= new_end < end:
                     flag = False
                     break
                 if is_flat and start < new_end and new_start < end:

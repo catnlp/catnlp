@@ -138,7 +138,7 @@ class PredictPlmCmeee:
                 flag = True
                 for new_pred_entity in new_pred_entities:
                     new_start, new_end, _ = new_pred_entity
-                    if start < new_start <= end < new_end or new_start < start <= end < new_end:
+                    if start < new_start <= end < new_end or new_start < start <= new_end < end:
                         #for flat ner nested mentions are not allowed
                         flag = False
                         break

@@ -1,0 +1,28 @@
+type: cmeee
+name: bert_biaffine
+delimiter: "\t"
+input: "resources/data/dataset/ner/zh/ccks/cmeee/0808/cut"
+file_format: biaffine
+output: "resources/data/output/ner/zh/ccks/cmeee/0808/bert-base-chinese/biaffine"
+summary: "resources/data/output/ner/zh/ccks/cmeee/0808/bert-base-chinese/biaffine/summary"
+max_length: 200
+model_path: resources/data/pretrained/bert-base-chinese
+per_device_train_batch_size: 8
+per_device_eval_batch_size: 4
+plm_lr: 1.0297127640588862e-05
+not_plm_lr: 5.143696885811861e-05
+weight_decay: 0.0
+model_type: bert
+decode_type: biaffine
+loss_name: "ce"
+num_train_epochs: 10
+gradient_accumulation_steps: 1
+lr_scheduler_type: linear
+num_warmup_steps: 0
+seed: 100
+do_lower_case: True
+task_name: ner
+cpu: False
+k: 5
+
+# Trial 3 finished with value: 0.6782328020980432 and parameters: {'plm_lr': 2e-05, 'not_plm_lr': 0.0001, 'num_train_epochs': 13}. Best is trial 3 with value: 0.6782328020980432.
