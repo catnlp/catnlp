@@ -4,6 +4,7 @@ import logging
 import math
 import os
 from pathlib import Path
+import shutil
 
 import torch
 from tqdm.auto import tqdm
@@ -19,7 +20,7 @@ from transformers import (
 )
 
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertSoftmax, BertLstmCrf
+from .model.bert import BertBiaffine, BertCrf, BertMultiBiaffine, BertSoftmax, BertLstmCrf
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.score import get_f1
@@ -86,6 +87,13 @@ class PlmTrainCmeee:
         print(label_to_id)
         num_labels = len(label_list)
 
+        seg_file = Path(config.get("output")) / "seg.txt"
+        train_dataset.save_seg(seg_file)
+        seg_list = train_dataset.get_seg_list()
+        seg_to_id = train_dataset.get_seg_to_id()
+        print(seg_to_id)
+        num_segs = len(seg_list)
+
         # Load pretrained model and tokenizer
         #
         # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
@@ -101,6 +109,8 @@ class PlmTrainCmeee:
             model_func = BertLstmCrf
         elif model_name == "bert_biaffine":
             model_func = BertBiaffine
+        elif model_name == "bert_multi_biaffine":
+            model_func = BertMultiBiaffine
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
@@ -109,6 +119,7 @@ class PlmTrainCmeee:
             raise ValueError
         
         pretrained_config.loss_name = config.get("loss_name")
+        pretrained_config.num_segs = num_segs
 
         model = model_func.from_pretrained(
             config.get("model_path"),
@@ -198,6 +209,8 @@ class PlmTrainCmeee:
             dev_loss = 0.0
             for step, batch in enumerate(train_dataloader):
                 inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
+                if model_func == "bert_multi_biaffine":
+                    inputs["words"] = batch[6]
                 outputs = model(**inputs)
                 loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
@@ -222,6 +235,8 @@ class PlmTrainCmeee:
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1], "label_mask": batch[4], "input_len": batch[5]}
                     outputs = model(**inputs)
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
+                    if model_func == "bert_multi_biaffine":
+                        inputs["words"] = batch[6]
                     loss = model(**inputs)
                     dev_loss += loss.item()
                 labels = batch[3]
@@ -282,3 +297,5 @@ class PlmTrainCmeee:
                 # accelerator.wait_for_everyone()
                 # unwrapped_model = accelerator.unwrap_model(model)
                 # unwrapped_model.save_pretrained(config.get("output"), save_function=accelerator.save)
+        vocab_file = Path(config.get("model_path")) / "vocab.txt"
+        shutil.copy(vocab_file, config.get("output"))

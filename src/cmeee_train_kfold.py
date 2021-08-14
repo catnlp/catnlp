@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str,
                         default="NER", help="任务")
     parser.add_argument("--train_config", type=str,
-                        default="resources/config/ner/CMeEE/train_biaffine_kfold.yaml", help="训练配置")
+                        default="resources/config/ner/CMeEE/train_multi_biaffine_kfold.yaml", help="训练配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()

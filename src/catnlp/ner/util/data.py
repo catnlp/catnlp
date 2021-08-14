@@ -118,7 +118,8 @@ class NerBertDataLoader(DataLoader):
         all_label_mask = torch.tensor([f.label_mask for f in features])
         all_input_len = torch.tensor([f.input_len for f in features])
         all_masks = torch.tensor([f.masks for f in features])
-        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_label_mask, all_input_len, all_masks
+        all_seg_ids = torch.tensor([f.seg_ids for f in features])
+        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_label_mask, all_input_len, all_masks, all_seg_ids
 
 
 class NerBertDataset(Dataset):
@@ -299,20 +300,26 @@ class NerBertDataset(Dataset):
         """
         datas = list()
         label_set = set()
+        seg_set = set()
         with open(data_file, 'r', encoding='utf-8') as rf:
             for line in rf:
                 line = json.loads(line)
                 if not line:
                     continue
-                words = line["text"]
-                entities = line.get("labels")
+                text = line["text"]
+                entities = line.get("labels", list())
                 if not entities:
-                    entities = line.get("ner")
+                    entities = line.get("ner", list())
                 for entity in entities:
                     label_set.add(entity[2])
-                datas.append([words, entities])
+                segs = line.get("seg", list())
+                for seg in segs:
+                    seg_set.add(seg[2])
+                datas.append([text, entities, segs])
         self.label_list = ["[PAD]"] + sorted(list(label_set))
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        self.seg_list = ["[PAD]"] + sorted(list(seg_set))
+        self.seg_to_id = {seg: idx for idx, seg in enumerate(self.seg_list)}
         self.contents = list()
         self.offset_lists = list()
         return datas
@@ -323,19 +330,25 @@ class NerBertDataset(Dataset):
     def get_label_to_id(self):
         return self.label_to_id
 
+    def get_seg_list(self):
+        return self.seg_list
+
+    def get_seg_to_id(self):
+        return self.seg_to_id
+
     def get_contents(self):
         return self.contents
 
     def get_offset_lists(self):
         return self.offset_lists
     
-    def tokenize(self, words, labels, format="bio"):
+    def tokenize(self, text, labels, words, format="bio"):
         if format == "bio":
-            return self.tokenize_bio(words, labels)
+            return self.tokenize_bio(text, labels)
         elif format == "bies":
-            return self.tokenize_bies(words, labels)
+            return self.tokenize_bies(text, labels)
         elif format == "biaffine":
-            return self.tokenize_biaffine(words, labels)
+            return self.tokenize_biaffine(text, labels, words)
         else:
             raise ValueError
 
@@ -398,9 +411,10 @@ class NerBertDataset(Dataset):
                 _labels.append(tmp_label)
         return _tokens, _labels, _masks, _word_lens
     
-    def tokenize_biaffine(self, words, labels):
+    def tokenize_biaffine(self, words, labels, segs):
         _tokens = list()
         _labels = list()
+        _segs = list()
         _masks = list()
         _word_lens = list()
         for idx, word in enumerate(words):
@@ -424,7 +438,8 @@ class NerBertDataset(Dataset):
                 else:
                     _masks.append(0)
         _labels = labels
-        return _tokens, _labels, _masks, _word_lens
+        _segs = segs
+        return _tokens, _labels, _segs, _masks, _word_lens
 
     def _to_features(self, datas, file_format="general", max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=0,
@@ -438,7 +453,7 @@ class NerBertDataset(Dataset):
         """
         features = list()
         for (ex_index, data) in enumerate(datas):
-            tokens, labels, masks, word_lens = self.tokenize(data[0], data[1], file_format)
+            tokens, labels, segs, masks, word_lens = self.tokenize(data[0], data[1], data[2], file_format)
             if file_format != "biaffine":
                 label_ids = [self.label_to_id[x] for x in labels]
             # Account for [CLS] and [SEP] with "- 2".
@@ -517,14 +532,32 @@ class NerBertDataset(Dataset):
                         print("big")
                         continue
                     label_ids[start+1][end] = self.label_to_id[tag]
+                
+                seg_ids = label_ids
+                if self.seg_list:
+                    seg_ids = list()
+                    for i in range(max_seq_length):
+                        seg_ids.append([0 for _ in range(max_seq_length)])
+                    for seg in data[2]:
+                        try:
+                            start, end, tag = seg
+                        except Exception:
+                            start, end, tag, _ = seg
+                        # 默认第一个字符为[CLS]
+                        if end > input_len - 1:
+                            print("big")
+                            continue
+                        seg_ids[start+1][end] = self.seg_to_id[tag]
             else:
                 label_mask = label_ids
+                seg_ids = label_ids
 
             assert len(input_ids) == max_seq_length
             assert len(input_mask) == max_seq_length
             assert len(segment_ids) == max_seq_length
             assert len(label_ids) == max_seq_length
             assert len(label_mask) == max_seq_length
+            assert len(seg_ids) == max_seq_length
             assert len(masks) == max_seq_length
             if ex_index < 1:
                 print("*** Example ***")
@@ -541,13 +574,18 @@ class NerBertDataset(Dataset):
                         print(label_ids[i])
                 else:
                     print("label_ids: ", label_ids)
-            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask, input_len=input_len, masks=masks))
+            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask, input_len=input_len, masks=masks, seg_ids=seg_ids))
         return features
 
     def save_label(self, label_file):
         with open(label_file, "w", encoding="utf-8") as lf:
             for label in self.label_list:
                 lf.write(f"{label}\n")
+    
+    def save_seg(self, seg_file):
+        with open(seg_file, "w", encoding="utf-8") as lf:
+            for seg in self.seg_list:
+                lf.write(f"{seg}\n")
 
     def __len__(self):
         return len(self._data)
@@ -557,7 +595,7 @@ class NerBertDataset(Dataset):
 
 class InputFeatures(object):
     """A single set of features of data."""
-    def __init__(self, input_ids, input_mask, segment_ids, label_ids, label_mask, input_len, masks):
+    def __init__(self, input_ids, input_mask, segment_ids, label_ids, label_mask, input_len, masks, seg_ids):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
@@ -565,6 +603,7 @@ class InputFeatures(object):
         self.label_mask = label_mask
         self.input_len = input_len
         self.masks = masks
+        self.seg_ids = seg_ids
 
     def __repr__(self):
         return str(self.to_json_string())

@@ -25,5 +25,6 @@ class PredictDict:
                 end, word = tmp_entity
                 end += 1
                 start = end - len(word)
-                entity_list.append([start, end, tag])
+                word = text[start: end]
+                entity_list.append([start, end, tag, word])
         return entity_list

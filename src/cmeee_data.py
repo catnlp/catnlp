@@ -1,10 +1,33 @@
-from genericpath import exists
 import json
 import re
 import os
 import random
 from pathlib import Path
 from sklearn.model_selection import KFold
+import ahocorasick
+
+from catnlp.common.load_file import load_dict_file
+
+
+class PredictDict:
+    def __init__(self, dict_file) -> None:
+        self.tag_service = ahocorasick.Automaton()
+        dict_list = load_dict_file(dict_file)
+        for word in dict_list:
+            self.tag_service.add_word(word, word)
+        self.tag_service.make_automaton()
+
+
+    def predict(self, text):
+        entity_list = list()
+        tmp_entities = list(self.tag_service.iter(text))
+        for tmp_entity in tmp_entities:
+            end, word = tmp_entity
+            end += 1
+            start = end - len(word)
+            word = text[start: end]
+            entity_list.append([start, end, "medical", word])
+        return entity_list
 
 
 def tojson(source, target):
@@ -92,7 +115,7 @@ def split_file(source, train_all, train, dev):
                 df.write(line)
 
 
-def cut_file(source, target):
+def get_cut_file(source, target):
     with open(source, "r", encoding="utf-8") as sf, \
         open(target, "w", encoding="utf-8") as tf:
         for line in sf:
@@ -240,13 +263,32 @@ def valid(text, sent_list, offset_list):
     return True
 
 
+def get_all_file(source, target, predict_service):
+    with open(source, "r", encoding="utf-8") as sf, \
+            open(target, "w", encoding="utf-8") as tf:
+        for line in sf:
+            line = json.loads(line)
+            if not line:
+                continue
+            text = line["text"]
+            entities = line["ner"]
+            segs = predict_service.predict(text)
+            tf.write(json.dumps({
+                "text": text,
+                "ner": entities,
+                "seg": segs
+            }, ensure_ascii=False) + "\n")
+
+
 if __name__ == "__main__":
+    random.seed(100)
     source_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/raw")
     json_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/json")
     # split_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/split")
     kfold_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/kfold")
     cut_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/cut")
-    for path in [json_path, kfold_path, cut_path]:
+    all_path = Path("resources/data/dataset/ner/zh/ccks/cmeee/all")
+    for path in [json_path, kfold_path, cut_path, all_path]:
         if not os.path.exists(path):
             os.mkdir(path)
     print("tojson")
@@ -267,6 +309,8 @@ if __name__ == "__main__":
     # train_file = split_path / "train.json"
     # dev_file = split_path / "dev.json"
     # split_file(source_file, train_all_file, train_file, dev_file)
+    dict_file = "resources/data/dict/medical/all.txt"
+    predict_service = PredictDict(dict_file)
 
     print("cut_file")
     for i in range(k):
@@ -276,5 +320,10 @@ if __name__ == "__main__":
             cur_path = cut_path / f"{i}"
             if not os.path.exists(cur_path):
                 os.makedirs(cur_path, exist_ok=True)
-            target_file = cur_path / f"{data}.json"
-            cut_file(source_file, target_file)
+            cut_file = cur_path / f"{data}.json"
+            get_cut_file(source_file, cut_file)
+            cur_path = all_path / f"{i}"
+            if not os.path.exists(cur_path):
+                os.makedirs(cur_path, exist_ok=True)
+            all_file = cur_path / f"{data}.json"
+            get_all_file(cut_file, all_file, predict_service)
