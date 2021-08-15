@@ -1,10 +1,10 @@
 type: cmeee
-name: bert_multi_biaffine
+name: bert_multi_add_biaffine
 delimiter: "\t"
-input: "resources/data/dataset/ner/zh/ccks/cmeee/0815/all"
+input: "resources/data/dataset/ner/zh/ccks/cmeee/0814/all"
 file_format: biaffine
-output: "resources/data/output/ner/zh/ccks/cmeee/0815/bert-base-chinese/multi-biaffine"
-summary: "resources/data/output/ner/zh/ccks/cmeee/0815/bert-base-chinese/multi-biaffine/summary"
+output: "resources/data/output/ner/zh/ccks/cmeee/0814/bert-base-chinese/multi-add-biaffine"
+summary: "resources/data/output/ner/zh/ccks/cmeee/0814/bert-base-chinese/multi-add-biaffine/summary"
 max_length: 200
 model_path: resources/data/pretrained/bert-base-chinese
 per_device_train_batch_size: 8

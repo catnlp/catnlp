@@ -20,7 +20,7 @@ from transformers import (
 )
 
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertMultiBiaffine, BertSoftmax, BertLstmCrf
+from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.score import get_f1
@@ -111,6 +111,8 @@ class PlmTrainCmeee:
             model_func = BertBiaffine
         elif model_name == "bert_multi_biaffine":
             model_func = BertMultiBiaffine
+        elif model_name == "bert_multi_add_biaffine":
+            model_func = BertMultiAddBiaffine
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
@@ -209,8 +211,8 @@ class PlmTrainCmeee:
             dev_loss = 0.0
             for step, batch in enumerate(train_dataloader):
                 inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
-                if model_func == "bert_multi_biaffine":
-                    inputs["words"] = batch[6]
+                if model_name == "bert_multi_biaffine":
+                    inputs["segs"] = batch[7]
                 outputs = model(**inputs)
                 loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
@@ -235,8 +237,8 @@ class PlmTrainCmeee:
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1], "label_mask": batch[4], "input_len": batch[5]}
                     outputs = model(**inputs)
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
-                    if model_func == "bert_multi_biaffine":
-                        inputs["words"] = batch[6]
+                    if model_name == "bert_multi_biaffine":
+                        inputs["segs"] = batch[7]
                     loss = model(**inputs)
                     dev_loss += loss.item()
                 labels = batch[3]

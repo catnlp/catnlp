@@ -30,7 +30,7 @@ import numpy as np
 
 from ..common.load_file import load_label_file
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertMultiBiaffine, BertSoftmax, BertLstmCrf
+from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf
 from .util.tokenizer import NerBertTokenizer
 
 
@@ -60,6 +60,8 @@ class PredictPlmCmeee:
             model_func = BertBiaffine
         elif model_name == "bert_multi_biaffine":
             model_func = BertMultiBiaffine
+        elif model_name == "bert_multi_add_biaffine":
+            model_func = BertMultiAddBiaffine
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
