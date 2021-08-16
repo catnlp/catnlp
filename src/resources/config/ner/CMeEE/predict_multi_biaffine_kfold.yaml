@@ -19,7 +19,7 @@ cmeee:
   name: bert_multi_biaffine
   decode_type: biaffine
   max_length: 200
-  model_path: "resources/data/output/ner/zh/ccks/cmeee/0814/bert-base-chinese/multi-biaffine"
+  model_path: "resources/data/output/ner/zh/ccks/cmeee/0815/bert-base-chinese/multi-biaffine"
   do_lower_case: True
   device: cuda
   split: True
