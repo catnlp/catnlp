@@ -463,6 +463,17 @@ class NerBertDataset(Dataset):
                 masks = masks[: (max_seq_length - special_tokens_count)]
                 if file_format != "biaffine":
                     label_ids = label_ids[: (max_seq_length - special_tokens_count)]
+            
+            if file_format == "span":
+                start_ids = [0] * len(tokens)
+                end_ids = [0] * len(tokens)
+                for entity in data[1]:
+                    try:
+                        start, end, tag = entity
+                    except Exception:
+                        start, end, tag, _ = entity
+                    start_ids[start] = self.label_list[tag]
+                    end_ids[end-1] = self.label_list[tag]
 
             # The convention in BERT is:
             # (a) For sequence pairs:

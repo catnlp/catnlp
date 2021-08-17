@@ -17,6 +17,7 @@ from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, \
 from ...layer.decoder.crf import CRF
 from ..loss.dice_loss import DiceLoss
 from ..loss.focal_loss import FocalLoss
+from ..loss.label_loss import LabelSmoothingCrossEntropy
 
 
 class BertSoftmax(BertPreTrainedModel):
@@ -250,6 +251,85 @@ class BertLstmCrf1(BertPreTrainedModel):
             output = self.crf.decode(emissions=logits, mask=attention_mask[:, :dim2])
             output = pad_sequence([torch.tensor(o) for o in output], batch_first=True, padding_value=0)
 
+        return output
+
+
+class BertSpan(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+
+        self.bert = BertModel(config) #, add_pooling_layer=False)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.lstm = nn.LSTM(config.hidden_size, config.hidden_size// 2,
+                            batch_first=True,
+                            bidirectional=True)
+        self.start_fc = nn.Linear(config.hidden_size, self.num_labels)
+        self.end_fc = nn.Linear(config.hidden_size, self.num_labels)
+        self.loss_name = config.loss_name
+        if self.loss_name =='lsr':
+            self.loss_func = LabelSmoothingCrossEntropy()
+        elif self.loss_name == 'focal':
+            self.loss_func = FocalLoss()
+        else:
+            self.loss_func = CrossEntropyLoss()
+        self.init_weights()
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        labels=None,
+        label_mask=None,
+        input_len=None,
+        segs=None,
+        start_labels=None,
+        end_labels=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+
+        sequence_output = self.dropout(sequence_output)
+        lstm_output, _ = self.lstm(sequence_output)
+        start_logits = self.start_fc(lstm_output)
+        end_logits = self.end_fc(lstm_output)
+        attention_mask = attention_mask.byte()
+
+        if start_labels is not None and end_labels is not None:
+            mask = attention_mask.view(size=(-1,))
+            start_labels = start_labels.view(size=(-1,))
+            start_logits = start_logits.view(size=(-1, self.num_labels))
+            start_loss = self.loss_func(input=start_logits, target=start_labels)
+            start_loss *= mask
+            start_output = start_loss.sum() / mask.sum()
+            end_labels = end_labels.view(size=(-1,))
+            end_logits = end_logits.view(size=(-1, self.num_labels))
+            end_loss = self.loss_func(input=end_logits, target=end_labels)
+            end_loss *= mask
+            end_output = start_loss.sum() / mask.sum()
+            output = start_loss + end_loss
+        else:
+            start_output = nn.functional.softmax(start_logits, dim=-1)
+            end_output = nn.functional.softmax(end_logits, dim=-1)
+            output = (start_output, end_output)
         return output
 
 

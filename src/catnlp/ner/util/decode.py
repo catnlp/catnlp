@@ -110,3 +110,17 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks, is_flat):
         preds.append(pred_entities)
         golds.append(gold_entities)
     return preds, golds
+
+
+def bert_extract_item(start_logits, end_logits):
+    S = []
+    start_pred = start_logits.cpu().numpy()[0][1:-1]
+    end_pred = end_logits.cpu().numpy()[0][1:-1]
+    for i, s_l in enumerate(start_pred):
+        if s_l == 0:
+            continue
+        for j, e_l in enumerate(end_pred[i:]):
+            if s_l == e_l:
+                S.append((s_l, i, i + j))
+                break
+    return S
