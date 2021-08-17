@@ -67,9 +67,9 @@ if __name__ == "__main__":
     parser.add_argument("--gold_file", type=str,
                         default="resources/data/dataset/ner/zh/ccks/cmeee/0808/test.json", help="测试文件")
     parser.add_argument("--pred_file", type=str,
-                    default="resources/data/dataset/ner/zh/ccks/cmeee/0814/test_pred_0.json", help="结果文件")
+                    default="resources/data/dataset/ner/zh/ccks/cmeee/0815/test_pred_0.json", help="结果文件")
     parser.add_argument("--score_file", type=str,
-                        default="resources/data/dataset/ner/zh/ccks/cmeee/0814/score_0.text", help="预测配置")
+                        default="resources/data/dataset/ner/zh/ccks/cmeee/0815/score_0.text", help="预测配置")
     args = parser.parse_args()
 
     with open(args.gold_file, "r", encoding="utf-8") as gf, \

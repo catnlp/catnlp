@@ -63,9 +63,9 @@ if __name__ == "__main__":
     parser.add_argument("--input_file", type=str,
                         default="resources/data/dataset/ner/zh/ccks/cmeee/0808/test.json", help="测试文件")
     parser.add_argument("--output_dir", type=str,
-                    default="resources/data/dataset/ner/zh/ccks/cmeee/0814", help="结果文件")
+                    default="resources/data/dataset/ner/zh/ccks/cmeee/0815", help="结果文件")
     parser.add_argument("--predict_config", type=str,
-                        default="resources/config/ner/CMeEE/predict_multi_biaffine_kfold.yaml", help="预测配置")
+                        default="resources/config/ner/CMeEE/predict_multi_hidden_biaffine_kfold.yaml", help="预测配置")
     parser.add_argument("--log_config", type=str,
                         default="resources/config/ner/logging.yaml", help="日志配置")
     args = parser.parse_args()

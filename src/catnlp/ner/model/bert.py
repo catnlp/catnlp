@@ -447,6 +447,10 @@ class BertMultiHiddenBiaffine(BertPreTrainedModel):
                                             torch.nn.ReLU())
         self.end_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=200),
                                             torch.nn.ReLU())
+        self.seg_start_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=200),
+                                            torch.nn.ReLU())
+        self.seg_end_layer = torch.nn.Sequential(torch.nn.Linear(in_features=hidden_size, out_features=200),
+                                            torch.nn.ReLU())
         self.biaffine_layer = biaffine(200, config.num_labels)
         self.seg_biaffine_layer = biaffine(200, config.num_segs)
         loss_name = config.loss_name
@@ -508,13 +512,15 @@ class BertMultiHiddenBiaffine(BertPreTrainedModel):
             span_loss *= label_mask
             output = span_loss.sum() / label_mask.sum()
             if segs is not None:
-                segs_span_logits = self.seg_biaffine_layer(start_logits, end_logits)
-                segs_span_logits = segs_span_logits.contiguous()
+                seg_start_logits = self.seg_start_layer(sequence_output) 
+                seg_end_logits = self.seg_end_layer(sequence_output) 
+                seg_span_logits = self.seg_biaffine_layer(seg_start_logits, seg_end_logits)
+                seg_span_logits = seg_span_logits.contiguous()
                 segs = segs.view(size=(-1,))
-                segs_span_logits = segs_span_logits.view(size=(-1, self.num_segs))
-                segs_span_loss = self.loss_func(input=segs_span_logits, target=segs)
-                segs_span_loss *= label_mask
-                output += segs_span_loss.sum() / label_mask.sum()
+                seg_span_logits = seg_span_logits.view(size=(-1, self.num_segs))
+                seg_span_loss = self.loss_func(input=seg_span_logits, target=segs)
+                seg_span_loss *= label_mask
+                output += seg_span_loss.sum() / label_mask.sum()
         else:
             output = nn.functional.softmax(span_logits, dim=-1)
             # output = torch.argmax(output, dim=-1)

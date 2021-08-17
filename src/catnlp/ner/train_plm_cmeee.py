@@ -20,7 +20,7 @@ from transformers import (
 )
 
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf
+from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiHiddenBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.score import get_f1
@@ -113,6 +113,8 @@ class PlmTrainCmeee:
             model_func = BertMultiBiaffine
         elif model_name == "bert_multi_add_biaffine":
             model_func = BertMultiAddBiaffine
+        elif model_name == "bert_multi_hidden_biaffine":
+            model_func = BertMultiHiddenBiaffine
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
