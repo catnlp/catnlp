@@ -119,7 +119,9 @@ class NerBertDataLoader(DataLoader):
         all_input_len = torch.tensor([f.input_len for f in features])
         all_masks = torch.tensor([f.masks for f in features])
         all_seg_ids = torch.tensor([f.seg_ids for f in features])
-        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_label_mask, all_input_len, all_masks, all_seg_ids
+        all_start_ids = torch.tensor([f.start_ids for f in features])
+        all_end_ids = torch.tensor([f.end_ids for f in features])
+        return all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_label_mask, all_input_len, all_masks, all_seg_ids, all_start_ids, all_end_ids
 
 
 class NerBertDataset(Dataset):
@@ -149,6 +151,8 @@ class NerBertDataset(Dataset):
             return self._load_biaffine_file(data_file)
         elif file_format == "bies":
             return self._load_bies_file(data_file, delimiter)
+        elif file_format == "span":
+            return self._load_span_file(data_file)
         else:
             return self._load_conll_file(data_file, delimiter)
 
@@ -323,6 +327,39 @@ class NerBertDataset(Dataset):
         self.contents = list()
         self.offset_lists = list()
         return datas
+    
+    def _load_span_file(self, data_file):
+        """
+        加载数据集文件
+        Args:
+            data_file(str): 数据集文件路径
+        Returns: 无
+        """
+        datas = list()
+        label_set = set()
+        seg_set = set()
+        with open(data_file, 'r', encoding='utf-8') as rf:
+            for line in rf:
+                line = json.loads(line)
+                if not line:
+                    continue
+                text = line["text"]
+                entities = line.get("labels", list())
+                if not entities:
+                    entities = line.get("ner", list())
+                for entity in entities:
+                    label_set.add(entity[2])
+                segs = line.get("seg", list())
+                for seg in segs:
+                    seg_set.add(seg[2])
+                datas.append([text, entities, segs])
+        self.label_list = ["[PAD]"] + sorted(list(label_set))
+        self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
+        self.seg_list = ["[PAD]"] + sorted(list(seg_set))
+        self.seg_to_id = {seg: idx for idx, seg in enumerate(self.seg_list)}
+        self.contents = list()
+        self.offset_lists = list()
+        return datas
 
     def get_label_list(self):
         return self.label_list
@@ -349,6 +386,8 @@ class NerBertDataset(Dataset):
             return self.tokenize_bies(text, labels)
         elif format == "biaffine":
             return self.tokenize_biaffine(text, labels, words)
+        elif format == "span":
+            return self.tokenize_span(text, labels, words)
         else:
             raise ValueError
 
@@ -440,6 +479,36 @@ class NerBertDataset(Dataset):
         _labels = labels
         _segs = segs
         return _tokens, _labels, _segs, _masks, _word_lens
+    
+    def tokenize_span(self, words, labels, segs):
+        _tokens = list()
+        _labels = list()
+        _segs = list()
+        _masks = list()
+        _word_lens = list()
+        for idx, word in enumerate(words):
+            if self._do_lower:
+                word = word.lower()
+            if re.match(r"\s", word):
+                word = "[unused1]"
+            tmp_tokens = self.tokenizer.tokenize(word)
+            if len(tmp_tokens) == 0:
+                tmp_tokens = ['[UNK]']
+                # raise ValueError
+            _word_lens.append(len(tmp_tokens))
+            if len(tmp_tokens) == 1:
+                _tokens.append(tmp_tokens[0])
+                _masks.append(1)
+                continue
+            for idx, tmp_token in enumerate(tmp_tokens):
+                _tokens.append(tmp_token)
+                if idx == 0:
+                    _masks.append(1)
+                else:
+                    _masks.append(0)
+        _labels = labels
+        _segs = segs
+        return _tokens, _labels, _segs, _masks, _word_lens
 
     def _to_features(self, datas, file_format="general", max_seq_length=-1,
                      cls_token_at_end=False,cls_token="[CLS]",cls_token_segment_id=0,
@@ -454,26 +523,15 @@ class NerBertDataset(Dataset):
         features = list()
         for (ex_index, data) in enumerate(datas):
             tokens, labels, segs, masks, word_lens = self.tokenize(data[0], data[1], data[2], file_format)
-            if file_format != "biaffine":
+            if file_format not in ["biaffine", "span"]:
                 label_ids = [self.label_to_id[x] for x in labels]
             # Account for [CLS] and [SEP] with "- 2".
             special_tokens_count = 2
             if len(tokens) > max_seq_length - special_tokens_count:
                 tokens = tokens[: (max_seq_length - special_tokens_count)]
                 masks = masks[: (max_seq_length - special_tokens_count)]
-                if file_format != "biaffine":
+                if file_format not in ["biaffine", "span"]:
                     label_ids = label_ids[: (max_seq_length - special_tokens_count)]
-            
-            if file_format == "span":
-                start_ids = [0] * len(tokens)
-                end_ids = [0] * len(tokens)
-                for entity in data[1]:
-                    try:
-                        start, end, tag = entity
-                    except Exception:
-                        start, end, tag, _ = entity
-                    start_ids[start] = self.label_list[tag]
-                    end_ids[end-1] = self.label_list[tag]
 
             # The convention in BERT is:
             # (a) For sequence pairs:
@@ -496,13 +554,13 @@ class NerBertDataset(Dataset):
             pad_id = self.label_to_id.get(pad_token)
             tokens += [sep_token]
             masks += [0]
-            if file_format != "biaffine":
+            if file_format not in ["biaffine", "span"]:
                 label_ids += [pad_id]
             segment_ids = [sequence_a_segment_id] * len(tokens)
 
             tokens = [cls_token] + tokens
             masks = [0] + masks
-            if file_format != "biaffine":
+            if file_format not in ["biaffine", "span"]:
                 label_ids = [pad_id] + label_ids
             segment_ids = [cls_token_segment_id] + segment_ids
 
@@ -518,8 +576,15 @@ class NerBertDataset(Dataset):
             masks += [0] * padding_length
             input_mask += [0 if mask_padding_with_zero else 1] * padding_length
             segment_ids += [pad_token_segment_id] * padding_length
-            if file_format != "biaffine":
+            if file_format not in ["biaffine", "span"]:
                 label_ids += [pad_id] * padding_length
+            
+            label_mask = [1] * max_seq_length
+            seg_ids = [0] * max_seq_length
+            start_ids = [0] * max_seq_length
+            end_ids = [0] * max_seq_length
+            if file_format in ["span"]:
+                label_ids = [0] * max_seq_length
             
             if file_format == "biaffine":
                 # label_mask还要再看看
@@ -539,7 +604,7 @@ class NerBertDataset(Dataset):
                     except Exception:
                         start, end, tag, _ = entity
                     # 默认第一个字符为[CLS]
-                    if end > input_len - 1:
+                    if end > max_seq_length - 1:
                         print("big")
                         continue
                     label_ids[start+1][end] = self.label_to_id[tag]
@@ -555,13 +620,20 @@ class NerBertDataset(Dataset):
                         except Exception:
                             start, end, tag, _ = seg
                         # 默认第一个字符为[CLS]
-                        if end > input_len - 1:
+                        if end > max_seq_length - 1:
                             print("big")
                             continue
                         seg_ids[start+1][end] = self.seg_to_id[tag]
-            else:
-                label_mask = label_ids
-                seg_ids = label_ids
+            elif file_format == "span":
+                for entity in data[1]:
+                    try:
+                        start, end, tag = entity
+                    except Exception:
+                        start, end, tag, _ = entity
+                    if start+1 < max_seq_length:
+                        start_ids[start+1] = self.label_to_id[tag]
+                    if end < max_seq_length:
+                        end_ids[end] = self.label_to_id[tag]
 
             assert len(input_ids) == max_seq_length
             assert len(input_mask) == max_seq_length
@@ -570,6 +642,8 @@ class NerBertDataset(Dataset):
             assert len(label_mask) == max_seq_length
             assert len(seg_ids) == max_seq_length
             assert len(masks) == max_seq_length
+            assert len(start_ids) == max_seq_length
+            assert len(end_ids) == max_seq_length
             if ex_index < 1:
                 print("*** Example ***")
                 print("tokens: ", tokens)
@@ -583,9 +657,12 @@ class NerBertDataset(Dataset):
                     print("label_ids: ")
                     for i in range(len(label_ids)):
                         print(label_ids[i])
+                elif file_format == "span":
+                    print("start_ids: ", start_ids)
+                    print("end_ids: ", end_ids)
                 else:
                     print("label_ids: ", label_ids)
-            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask, input_len=input_len, masks=masks, seg_ids=seg_ids))
+            features.append(InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_ids=label_ids, label_mask=label_mask, input_len=input_len, masks=masks, seg_ids=seg_ids, start_ids=start_ids, end_ids=end_ids))
         return features
 
     def save_label(self, label_file):
@@ -606,7 +683,7 @@ class NerBertDataset(Dataset):
 
 class InputFeatures(object):
     """A single set of features of data."""
-    def __init__(self, input_ids, input_mask, segment_ids, label_ids, label_mask, input_len, masks, seg_ids):
+    def __init__(self, input_ids, input_mask, segment_ids, label_ids, label_mask, input_len, masks, seg_ids, start_ids, end_ids):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
@@ -615,6 +692,8 @@ class InputFeatures(object):
         self.input_len = input_len
         self.masks = masks
         self.seg_ids = seg_ids
+        self.start_ids = start_ids
+        self.end_ids = end_ids
 
     def __repr__(self):
         return str(self.to_json_string())

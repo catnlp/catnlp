@@ -44,6 +44,8 @@ class BertSoftmax(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -97,6 +99,8 @@ class BertCrf(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -157,6 +161,8 @@ class BertLstmCrf(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -214,6 +220,8 @@ class BertLstmCrf1(BertPreTrainedModel):
         labels=None,
         label_mask=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         input_len=None,
         output_attentions=None,
         output_hidden_states=None,
@@ -268,11 +276,11 @@ class BertSpan(BertPreTrainedModel):
         self.end_fc = nn.Linear(config.hidden_size, self.num_labels)
         self.loss_name = config.loss_name
         if self.loss_name =='lsr':
-            self.loss_func = LabelSmoothingCrossEntropy()
+            self.loss_func = LabelSmoothingCrossEntropy(reduction="none")
         elif self.loss_name == 'focal':
-            self.loss_func = FocalLoss()
+            self.loss_func = FocalLoss(reduction="none")
         else:
-            self.loss_func = CrossEntropyLoss()
+            self.loss_func = CrossEntropyLoss(reduction="none")
         self.init_weights()
 
     def forward(
@@ -324,11 +332,13 @@ class BertSpan(BertPreTrainedModel):
             end_logits = end_logits.view(size=(-1, self.num_labels))
             end_loss = self.loss_func(input=end_logits, target=end_labels)
             end_loss *= mask
-            end_output = start_loss.sum() / mask.sum()
-            output = start_loss + end_loss
+            end_output = end_loss.sum() / mask.sum()
+            output = start_output + end_output
         else:
             start_output = nn.functional.softmax(start_logits, dim=-1)
             end_output = nn.functional.softmax(end_logits, dim=-1)
+            start_output = start_output.argmax(dim=-1)
+            end_output = end_output.argmax(dim=-1)
             output = (start_output, end_output)
         return output
 
@@ -372,6 +382,8 @@ class BertBiaffine(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -457,6 +469,8 @@ class BertMultiBiaffine(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -554,6 +568,8 @@ class BertMultiHiddenBiaffine(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -649,6 +665,8 @@ class BertMultiAddBiaffine(BertPreTrainedModel):
         label_mask=None,
         input_len=None,
         segs=None,
+        start_labels=None,
+        end_labels=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,

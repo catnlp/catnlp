@@ -30,7 +30,7 @@ import numpy as np
 
 from ..common.load_file import load_label_file
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiHiddenBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf
+from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiHiddenBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf, BertSpan
 from .util.tokenizer import NerBertTokenizer
 
 
@@ -64,6 +64,8 @@ class PredictPlmCmeee:
             model_func = BertMultiAddBiaffine
         elif model_name == "bert_multi_hidden_biaffine":
             model_func = BertMultiHiddenBiaffine
+        elif model_name == "bert_span":
+            model_func = BertSpan
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
@@ -82,17 +84,29 @@ class PredictPlmCmeee:
         self.split = config.get("split")
     
     def get_labels(self, predictions, masks):
-        # Transform predictions and references tensos to numpy arrays
+        if self.decode_type == "span":
+            start_pred, end_pred = predictions
         if self.device == "cpu":
-            y_pred = predictions.detach().clone().numpy()
+            if self.decode_type == "span":
+                start_pred = start_pred.detach().clone().numpy()
+                end_pred = end_pred.detach().clone().numpy()
+            else:
+                y_pred = predictions.detach().clone().numpy()
             masks = masks.detach().clone().numpy()
         else:
-            y_pred = predictions.detach().cpu().clone().numpy()
+            if self.decode_type == "span":
+                start_pred = start_pred.detach().cpu().clone().numpy()
+                end_pred = end_pred.detach().cpu().clone().numpy()
+            else:
+                y_pred = predictions.detach().cpu().clone().numpy()
             masks = masks.detach().cpu().clone().numpy()
+
         if self.decode_type == "general":
             return self.get_general_labels(y_pred, masks)
         elif self.decode_type == "biaffine":
             return self.get_biaffine_labels(y_pred, masks)
+        elif self.decode_type == "span":
+            return self.get_span_labels(start_pred, end_pred)
         else:
             raise ValueError
 
@@ -152,6 +166,26 @@ class PredictPlmCmeee:
                     new_pred_entities.append([start, end, tag])
             preds.append(new_pred_entities)
         return preds
+    
+    def get_span_labels(self, start_id_lists, end_id_lists, is_flat):
+        preds = []
+        for start_ids, end_ids in zip(start_id_lists, end_id_lists):
+            start_ids = start_ids[1:-1]
+            end_ids = end_ids[1:-1]
+            i = 0
+            len_ids = len(start_ids)
+            while i < len_ids:
+                if start_ids[i] != 0:
+                    for j in range(i, len_ids):
+                        if start_ids[i] == end_ids[j]:
+                            tag = self.label_list[start_ids[i]]
+                            preds.append(i, j + 1, tag)
+                            if is_flat:
+                                i = j
+                            break
+                i += 1
+        return preds
+
     
     def predict(self, text):
         inputs, masks, offset_list = self.preprocess(text)

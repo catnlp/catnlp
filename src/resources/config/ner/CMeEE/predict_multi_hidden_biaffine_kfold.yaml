@@ -23,4 +23,5 @@ cmeee:
   do_lower_case: True
   device: cuda
   split: True
+  is_flat: False
 k: 1

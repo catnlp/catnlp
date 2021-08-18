@@ -20,7 +20,7 @@ from transformers import (
 )
 
 from .model.albert_tiny import AlbertTinyCrf, AlbertTinySoftmax
-from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiHiddenBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf
+from .model.bert import BertBiaffine, BertCrf, BertMultiAddBiaffine, BertMultiHiddenBiaffine, BertMultiBiaffine, BertSoftmax, BertLstmCrf, BertSpan
 from .util.data import NerBertDataset, NerBertDataLoader
 from .util.split import recover
 from .util.score import get_f1
@@ -115,6 +115,8 @@ class PlmTrainCmeee:
             model_func = BertMultiAddBiaffine
         elif model_name == "bert_multi_hidden_biaffine":
             model_func = BertMultiHiddenBiaffine
+        elif model_name == "bert_span":
+            model_func = BertSpan
         elif model_name == "albert_tiny_crf":
             model_func = AlbertTinyCrf
         elif model_name == "albert_tiny_softmax":
@@ -122,6 +124,7 @@ class PlmTrainCmeee:
         else:
             raise ValueError
         
+        is_flat = config.get("is_flat", True)
         pretrained_config.loss_name = config.get("loss_name")
         pretrained_config.num_segs = num_segs
 
@@ -215,6 +218,9 @@ class PlmTrainCmeee:
                 inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
                 if model_name == "bert_multi_biaffine":
                     inputs["segs"] = batch[7]
+                elif model_name == "bert_span":
+                    inputs["start_labels"] = batch[8]
+                    inputs["end_labels"] = batch[9]
                 outputs = model(**inputs)
                 loss = outputs
                 loss = loss / config.get("gradient_accumulation_steps")
@@ -241,12 +247,21 @@ class PlmTrainCmeee:
                     inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3], "label_mask": batch[4], "input_len": batch[5]}
                     if model_name == "bert_multi_biaffine":
                         inputs["segs"] = batch[7]
+                    elif model_name == "bert_span":
+                        inputs["start_labels"] = batch[8]
+                        inputs["end_labels"] = batch[9]
                     loss = model(**inputs)
                     dev_loss += loss.item()
-                labels = batch[3]
+                
                 predictions_gathered = accelerator.gather(outputs)
+                if model_name == "bert_span":
+                    start_ids = batch[8]
+                    end_ids = batch[9]
+                    labels = (start_ids, end_ids)
+                else:
+                    labels = batch[3]
                 labels_gathered = accelerator.gather(labels)
-                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, masks=batch[6], decode_type=decode_type, device=device_type, is_flat=False)
+                preds, golds = get_labels(predictions_gathered, labels_gathered, label_list, masks=batch[6], decode_type=decode_type, device=device_type, is_flat=is_flat)
                 pred_lists += preds
                 gold_lists += golds
                 # for token, gold in zip(batch[0], golds):

@@ -2,18 +2,35 @@ import numpy as np
 
 
 def get_labels(predictions, references, label_list, masks, decode_type="general", device="cpu", is_flat=True):
+    if decode_type == "span":
+        start_pred, end_pred = predictions
+        start_true, end_true = references
     if device == "cpu":
-        y_pred = predictions.detach().clone().numpy()
-        y_true = references.detach().clone().numpy()
+        if decode_type == "span":
+            start_pred = start_pred.detach().clone().numpy()
+            end_pred = end_pred.detach().clone().numpy()
+            start_true = start_true.detach().clone().numpy()
+            end_true = end_true.detach().clone().numpy()
+        else:
+            y_pred = predictions.detach().clone().numpy()
+            y_true = references.detach().clone().numpy()
         masks = masks.detach().clone().numpy()
     else:
-        y_pred = predictions.detach().cpu().clone().numpy()
-        y_true = references.detach().cpu().clone().numpy()
+        if decode_type == "span":
+            start_pred = start_pred.detach().cpu().clone().numpy()
+            end_pred = end_pred.detach().cpu().clone().numpy()
+            start_true = start_true.detach().cpu().clone().numpy()
+            end_true = end_true.detach().cpu().clone().numpy()
+        else:
+            y_pred = predictions.detach().cpu().clone().numpy()
+            y_true = references.detach().cpu().clone().numpy()
         masks = masks.detach().cpu().clone().numpy()
     if decode_type == "general":
         return get_general_labels(y_pred, y_true, label_list, masks)
     elif decode_type == "biaffine":
         return get_biaffine_labels(y_pred, y_true, label_list, masks, is_flat)
+    elif decode_type == "span":
+        return get_span_labels(start_pred, end_pred, start_true, end_true, label_list, is_flat)
     else:
         raise ValueError
 
@@ -112,15 +129,27 @@ def get_biaffine_labels(y_pred, y_true, label_list, masks, is_flat):
     return preds, golds
 
 
-def bert_extract_item(start_logits, end_logits):
-    S = []
-    start_pred = start_logits.cpu().numpy()[0][1:-1]
-    end_pred = end_logits.cpu().numpy()[0][1:-1]
-    for i, s_l in enumerate(start_pred):
-        if s_l == 0:
-            continue
-        for j, e_l in enumerate(end_pred[i:]):
-            if s_l == e_l:
-                S.append((s_l, i, i + j))
-                break
-    return S
+def get_span_labels(start_pred, end_pred, start_true, end_true, label_list, is_flat):
+    preds = extract_span_item(start_pred, end_pred, label_list, is_flat)
+    golds = extract_span_item(start_true, end_true, label_list, is_flat)
+    return preds, golds
+
+
+def extract_span_item(start_id_lists, end_id_lists, label_list, is_flat):
+    entities = []
+    for start_ids, end_ids in zip(start_id_lists, end_id_lists):
+        start_ids = start_ids[1:-1]
+        end_ids = end_ids[1:-1]
+        i = 0
+        len_ids = len(start_ids)
+        while i < len_ids:
+            if start_ids[i] != 0:
+                for j in range(i, len_ids):
+                    if start_ids[i] == end_ids[j]:
+                        tag = label_list[start_ids[i]]
+                        entities.append([i, j + 1, tag])
+                        if is_flat:
+                            i = j
+                        break
+            i += 1
+    return entities

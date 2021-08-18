@@ -16,10 +16,10 @@
 #   roadno: "resources/data/re/address/roadno.txt"
 #   assist: "resources/data/re/address/assist.txt"
 cmeee:
-  name: bert_multi_biaffine
-  decode_type: biaffine
+  name: bert_span
+  decode_type: span
   max_length: 200
-  model_path: "resources/data/output/ner/zh/ccks/cmeee/0815/bert-base-chinese/multi-biaffine"
+  model_path: "resources/data/output/ner/zh/ccks/cmeee/0815/bert-base-chinese/span"
   do_lower_case: True
   device: cuda
   split: True
