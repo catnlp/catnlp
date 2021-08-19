@@ -136,8 +136,9 @@ def get_span_labels(start_pred, end_pred, start_true, end_true, label_list, is_f
 
 
 def extract_span_item(start_id_lists, end_id_lists, label_list, is_flat):
-    entities = []
+    entity_lists = list()
     for start_ids, end_ids in zip(start_id_lists, end_id_lists):
+        entity_list = list()
         start_ids = start_ids[1:-1]
         end_ids = end_ids[1:-1]
         i = 0
@@ -147,9 +148,10 @@ def extract_span_item(start_id_lists, end_id_lists, label_list, is_flat):
                 for j in range(i, len_ids):
                     if start_ids[i] == end_ids[j]:
                         tag = label_list[start_ids[i]]
-                        entities.append([i, j + 1, tag])
+                        entity_list.append([i, j + 1, tag])
                         if is_flat:
                             i = j
                         break
             i += 1
-    return entities
+        entity_lists.append(entity_list)
+    return entity_lists
