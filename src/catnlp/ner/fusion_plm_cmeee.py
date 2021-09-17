@@ -17,11 +17,13 @@
 Fine-tuning a 🤗 Transformers model on token classification tasks (NER, POS, CHUNKS) relying on the accelerate library
 without using a Trainer.
 """
+import os
 import re
 import logging
 from pathlib import Path
 
 import torch
+from torch._C import device
 from transformers import (
     AutoConfig,
     AutoTokenizer
@@ -37,7 +39,7 @@ from .util.tokenizer import NerBertTokenizer
 logger = logging.getLogger(__name__)
 
 
-class PredictPlmCmeee:
+class FusionPlmCmeee:
     def __init__(self, config) -> None:
         self.max_seq_length = config.get("max_length")
         self.do_lower = config.get("do_lower_case")
@@ -45,8 +47,8 @@ class PredictPlmCmeee:
         self.label_list = load_label_file(label_file)
         self.label_to_id = {label: idx for idx, label in enumerate(self.label_list)}
         print(self.label_to_id)
-        self.tokenizer = AutoTokenizer.from_pretrained(config.get("model_path"), use_fast=True)
-        pretrained_config = AutoConfig.from_pretrained(config.get("model_path"), num_labels=len(self.label_list))
+        self.tokenizer = None
+        self.pretrained_config = None
 
         model_func = None
         model_name = config.get("name").lower()
@@ -72,14 +74,23 @@ class PredictPlmCmeee:
             model_func = AlbertTinySoftmax
         else:
             raise ValueError
-        pretrained_config.loss_name = None
-        self.model = model_func.from_pretrained(
-            config.get("model_path"),
-            config=pretrained_config
-        )
+        self.models = list()
+        self.k = config.get("k")
         self.device = config.get("device")
-        self.model.to(torch.device(self.device))
-        self.model.eval()
+        for i in range(self.k):
+            model_path = os.path.join(config.get("model_path"), str(i))
+            if not self.tokenizer:
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+            if not self.pretrained_config:
+                self.pretrained_config = AutoConfig.from_pretrained(model_path, num_labels=len(self.label_list))
+                self.pretrained_config.loss_name = None
+            model = model_func.from_pretrained(
+                model_path,
+                config=self.pretrained_config
+            )
+            model.to(torch.device(self.device))
+            model.eval()
+            self.models.append(model)
         self.decode_type = config.get("decode_type")
         self.split = config.get("split")
     
@@ -190,10 +201,20 @@ class PredictPlmCmeee:
     def predict(self, text):
         inputs, masks, offset_list = self.preprocess(text)
         try:
-            outputs = self.model(**inputs)
+            inputs["is_fusion"] = True
+            outputs = None
+            for i in range(self.k):
+                output = self.models[i](**inputs)
+                if not outputs:
+                    outputs = torch.log(output)
+                elif output:
+                    outputs += torch.log(output)
+            # todo 删除改行
+            outputs = torch.nn.functional.softmax(outputs, dim=-1)
         except Exception as e:
             print(text)
             print(inputs)
+            print(str(e))
             exit(1)
         entity_lists = self.postprocess([text], outputs, masks)
         if self.split:

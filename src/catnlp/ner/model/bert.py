@@ -387,6 +387,7 @@ class BertBiaffine(BertPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        is_fusion=False
     ):
         outputs = self.bert(
             input_ids,
@@ -421,6 +422,8 @@ class BertBiaffine(BertPreTrainedModel):
             label_mask = label_mask.view(size=(-1,))
             span_loss *= label_mask
             output = span_loss.sum() / label_mask.sum()
+        elif is_fusion:
+            output = span_logits
         else:
             output = nn.functional.softmax(span_logits, dim=-1)
             # output = torch.argmax(output, dim=-1)
@@ -573,6 +576,7 @@ class BertMultiHiddenBiaffine(BertPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        is_fusion=False
     ):
         outputs = self.bert(
             input_ids,
@@ -617,6 +621,8 @@ class BertMultiHiddenBiaffine(BertPreTrainedModel):
                 seg_span_loss = self.loss_func(input=seg_span_logits, target=segs)
                 seg_span_loss *= label_mask
                 output += seg_span_loss.sum() / label_mask.sum()
+        elif is_fusion:
+            output = span_logits
         else:
             output = nn.functional.softmax(span_logits, dim=-1)
             # output = torch.argmax(output, dim=-1)
