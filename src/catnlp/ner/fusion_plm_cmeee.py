@@ -201,14 +201,16 @@ class FusionPlmCmeee:
     def predict(self, text):
         inputs, masks, offset_list = self.preprocess(text)
         try:
-            inputs["is_fusion"] = True
-            outputs = None
-            for i in range(self.k):
-                output = self.models[i](**inputs)
-                if not outputs:
-                    outputs = torch.log(output)
-                elif output:
-                    outputs += torch.log(output)
+            with torch.no_grad():
+                inputs["is_fusion"] = True
+                outputs = None
+                for i in range(self.k):
+                    output = self.models[i](**inputs).cpu()
+                    if not outputs:
+                        outputs = torch.sigmoid(output)
+                    else:
+                        outputs += torch.sigmoid(output)
+                    torch.cuda.empty_cache()
             # todo 删除改行
             outputs = torch.nn.functional.softmax(outputs, dim=-1)
         except Exception as e:
