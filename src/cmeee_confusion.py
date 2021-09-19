@@ -40,6 +40,7 @@ def confusion_matrix(gold, pred):
                     column = tag2idx[g_tag]
                 matrix[row][column] += 1
             
+            pos2tag = dict()
             for entity in p_set:
                 start, end, tag, _ = entity
                 pos2tag[(start, end)] = tag
